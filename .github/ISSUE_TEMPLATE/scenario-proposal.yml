@@ -1,0 +1,42 @@
+name: Adversarial scenario proposal
+description: Propose one deterministic case for the release gate
+title: "[Scenario]: "
+labels: ["scenario"]
+body:
+  - type: input
+    id: risk
+    attributes:
+      label: Risk being tested
+      placeholder: Approval bypass, stale policy, duplicate side effect, or tenant escape
+    validations:
+      required: true
+  - type: textarea
+    id: setup
+    attributes:
+      label: Synthetic setup
+      description: Describe fictional inputs and the policy under test.
+    validations:
+      required: true
+  - type: dropdown
+    id: expected
+    attributes:
+      label: Expected decision
+      options:
+        - allow
+        - deny
+        - approval_required
+    validations:
+      required: true
+  - type: textarea
+    id: failure
+    attributes:
+      label: What unsafe behavior should block the release?
+    validations:
+      required: true
+  - type: checkboxes
+    id: deterministic
+    attributes:
+      label: Reproducibility
+      options:
+        - label: The scenario requires no model, network, API key, or private data.
+          required: true
