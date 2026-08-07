@@ -10,6 +10,7 @@ idempotent, and replayable tool execution.
 - A new policy selects the wrong refund rules → **release blocked**
 - A timeout or retry submits the same refund ten times → **exactly one side effect**
 - A high-risk action bypasses approval → **execution paused**
+- A provider succeeds but the response is lost → **unknown, never blindly retried**
 - An incident cannot be explained → **inspect the event trail by run ID**
 
 This is a reference implementation using fictional orders and simulated refunds. It is not a
@@ -114,6 +115,36 @@ result = await execute_refund_async.invoke_async(
 If approval is required, call `approve(...)` and then `await resume_async(run_id)`. Calling the
 sync API for an async tool fails before a ledger run is created.
 
+## The crash-safe boundary
+
+An external API can commit a side effect even when the agent process times out before receiving a
+response. A tool that cannot determine its provider outcome should raise `IndeterminateOutcome`:
+
+```python
+from agenttrustops import IndeterminateOutcome
+
+try:
+    return payment_adapter.charge(order_id, amount)
+except ProviderResponseLost as error:
+    raise IndeterminateOutcome from error
+```
+
+AgentTrustOps records the run as `unknown`, suppresses blind retries, and keeps the decision open
+for a provider lookup. A trusted reconciliation worker resolves it exactly once:
+
+```python
+result = execute_refund.reconcile(
+    run_id,
+    outcome="completed",  # or "failed" after checking the provider
+    operator_id="reconciliation-worker",
+    note="Provider id p-123 confirms the side effect",
+    result={"provider_id": "p-123"},
+)
+```
+
+This is a local reference contract, not distributed exactly-once delivery. Production adapters
+still need provider idempotency, authenticated reconciliation workers, and durable monitoring.
+
 ## Approval-to-replay demo
 
 Run one persistent walkthrough without a model, network, or API key:
@@ -125,6 +156,21 @@ agenttrust demo --output-dir demo-runs
 It pauses an 800-unit synthetic refund, records a named approval, resumes exactly once, and
 prints a ready-to-run `agenttrust replay` command. The generated SQLite files remain under
 `demo-runs/` so you can inspect the evidence instead of trusting a screenshot.
+
+Try the async crash-window walkthrough too:
+
+```bash
+PYTHONPATH=src python examples/async_reconciliation.py
+```
+
+It runs without a model, API key, network, or real payment provider and prints:
+
+```text
+Initial result: unknown
+Retry result: unknown (duplicate=True)
+Reconciled result: completed
+Provider calls: 1
+```
 
 ## Core flow
 
@@ -150,6 +196,7 @@ run ID + append-only event view
 - explicit `invoke_async` and `resume_async` support for asynchronous agent tools;
 - tenant/action/idempotency uniqueness enforced in SQLite;
 - policy outcomes: allow, deny, or approval required;
+- explicit `unknown -> reconcile -> completed/failed` handling for uncertain provider outcomes;
 - named approval/rejection and explicit resume;
 - append-only action events and replayable audit view;
 - historical and current synthetic refund policies;
@@ -162,7 +209,7 @@ run ID + append-only event view
 
 ```text
 src/agenttrustops/       SDK, ledger, runtime, CLI and RefundOps reference app
-examples/refund_ops/     fictional policies and release scenarios
+examples/                fictional release scenarios and async reconciliation walkthrough
 tests/                   idempotency, approval, denial, replay and release-gate tests
 docs/                    problem, non-goals, threat model and production boundaries
 .github/workflows/       clean Python 3.11/3.12 verification

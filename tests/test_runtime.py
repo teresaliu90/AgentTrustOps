@@ -8,6 +8,7 @@ from pathlib import Path
 from agenttrustops import (
     ActionContext,
     ActionStatus,
+    IndeterminateOutcome,
     PolicyDecision,
     PolicyOutcome,
     SQLiteActionLedger,
@@ -298,6 +299,67 @@ class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
             self.ledger.events(result.run_id)[-1]["event_type"],
             "tool.execution.failed",
         )
+
+    def test_indeterminate_tool_outcome_requires_explicit_reconciliation(self) -> None:
+        def charge_card(item_id: str) -> dict[str, str]:
+            raise IndeterminateOutcome("provider response was lost")
+
+        action = self._action(charge_card)
+        unknown = action.invoke(
+            context=ActionContext(actor_id="test-agent"), item_id="A-6"
+        )
+
+        self.assertEqual(unknown.status, ActionStatus.UNKNOWN)
+        retry = action.invoke(
+            context=ActionContext(actor_id="test-agent"), item_id="A-6"
+        )
+        self.assertTrue(retry.duplicate)
+        self.assertEqual(retry.status, ActionStatus.UNKNOWN)
+
+        completed = action.reconcile(
+            unknown.run_id,
+            outcome="completed",
+            operator_id="reconciliation-worker",
+            note="Provider lookup confirms the charge committed",
+            result={"provider_id": "p-123"},
+        )
+        self.assertEqual(completed.status, ActionStatus.COMPLETED)
+        self.assertEqual(completed.value, {"provider_id": "p-123"})
+        self.assertEqual(
+            self.ledger.events(unknown.run_id)[-1]["event_type"],
+            "run.reconciled",
+        )
+
+        with self.assertRaisesRegex(ValueError, "waiting for reconciliation"):
+            action.reconcile(
+                unknown.run_id,
+                outcome="failed",
+                operator_id="reconciliation-worker",
+                note="Second resolution is not allowed",
+            )
+
+    async def test_async_cancellation_marks_run_unknown_before_reraising(self) -> None:
+        async def call_provider(item_id: str) -> dict[str, str]:
+            raise asyncio.CancelledError
+
+        action = self._action(call_provider)
+        with self.assertRaises(asyncio.CancelledError):
+            await action.invoke_async(
+                context=ActionContext(actor_id="test-agent"), item_id="A-7"
+            )
+
+        run = self.ledger.create_or_get_run(
+            run_id="unused",
+            tenant_id="default",
+            actor_id="test-agent",
+            roles=(),
+            evidence=(),
+            action_name=action.name,
+            risk="synthetic",
+            idempotency_key="async:default:A-7",
+            arguments={"item_id": "A-7"},
+        )[0]
+        self.assertEqual(run["status"], ActionStatus.UNKNOWN.value)
 
 
 if __name__ == "__main__":

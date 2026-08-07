@@ -8,12 +8,13 @@ from .models import (
     PolicyDecision,
     PolicyOutcome,
 )
-from .runtime import TrustedAction, trusted_action
+from .runtime import IndeterminateOutcome, TrustedAction, trusted_action
 
 __all__ = [
     "ActionContext",
     "ActionResult",
     "ActionStatus",
+    "IndeterminateOutcome",
     "PolicyDecision",
     "PolicyOutcome",
     "SQLiteActionLedger",

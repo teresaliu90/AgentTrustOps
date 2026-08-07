@@ -11,7 +11,8 @@ contracts against fictional data; it does not certify a production integration.
 - **Exactly-once language:** the demo prevents duplicate local execution for one stable
   idempotency identity. Distributed exactly-once delivery is not claimed.
 - **Crash window:** if an external provider succeeds and the process crashes before storing the
-  result, the run requires provider reconciliation or manual handling.
+  result, adapters can raise `IndeterminateOutcome`; the run becomes `unknown`, suppresses blind
+  retries, and requires provider reconciliation or manual handling.
 - **Approval:** a production approval actor must come from authenticated identity and policy, not
   an arbitrary request field.
 - **Sensitive data:** the demo stores action arguments for explainability. Production adapters

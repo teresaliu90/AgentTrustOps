@@ -207,6 +207,37 @@ class SQLiteActionLedger:
             )
             return cursor.rowcount == 1
 
+    def reconcile_run(
+        self,
+        run_id: str,
+        status: ActionStatus,
+        *,
+        reason: str,
+        result: Any = None,
+    ) -> bool:
+        """Resolve an unknown external outcome exactly once."""
+
+        if status not in (ActionStatus.COMPLETED, ActionStatus.FAILED):
+            raise ValueError("reconciliation status must be completed or failed")
+        with closing(self._connect()) as connection, connection:
+            connection.execute("BEGIN IMMEDIATE")
+            cursor = connection.execute(
+                """
+                UPDATE action_runs
+                SET status = ?, reason = ?, result_json = ?, updated_at = ?
+                WHERE run_id = ? AND status = ?
+                """,
+                (
+                    status.value,
+                    reason,
+                    None if result is None else _json(result),
+                    _now(),
+                    run_id,
+                    ActionStatus.UNKNOWN.value,
+                ),
+            )
+            return cursor.rowcount == 1
+
     def request_approval(self, run_id: str) -> None:
         timestamp = _now()
         with closing(self._connect()) as connection, connection:

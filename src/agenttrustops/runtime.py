@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import inspect
 from collections.abc import Callable
 from functools import update_wrapper
@@ -20,6 +21,10 @@ from .models import (
 T = TypeVar("T")
 Arguments = dict[str, Any]
 IdempotencyKey = Callable[[Arguments, ActionContext], str]
+
+
+class IndeterminateOutcome(Exception):
+    """Signal that a provider may have committed a side effect before failing."""
 
 
 class ActionPolicy(Protocol):
@@ -213,6 +218,42 @@ class TrustedAction:
         )
         return self._result_from_run(self.ledger.get_run(run_id))
 
+    def reconcile(
+        self,
+        run_id: str,
+        *,
+        outcome: str,
+        operator_id: str,
+        note: str,
+        result: Any = None,
+    ) -> ActionResult:
+        """Resolve an ``unknown`` run after checking the external provider."""
+
+        if outcome not in {ActionStatus.COMPLETED.value, ActionStatus.FAILED.value}:
+            raise ValueError("outcome must be 'completed' or 'failed'")
+        if not operator_id.strip() or not note.strip():
+            raise ValueError("operator_id and note are required")
+        run = self.ledger.get_run(run_id)
+        if run is None:
+            raise KeyError("run not found")
+        if run["action_name"] != self.name:
+            raise ValueError("run belongs to a different action")
+        status = ActionStatus(outcome)
+        if not self.ledger.reconcile_run(
+            run_id, status, reason=note.strip(), result=result
+        ):
+            raise ValueError("run is not waiting for reconciliation")
+        self.ledger.append_event(
+            run_id,
+            "run.reconciled",
+            {
+                "operator_id": operator_id.strip(),
+                "outcome": outcome,
+                "note": note.strip(),
+            },
+        )
+        return self._result_from_run(self.ledger.get_run(run_id))
+
     def resume(self, run_id: str) -> ActionResult:
         if self.is_async:
             raise TypeError("async trusted actions require 'await .resume_async(...)'")
@@ -257,6 +298,8 @@ class TrustedAction:
         self.ledger.append_event(run_id, "tool.execution.started", {})
         try:
             value = self.function(**arguments)
+        except IndeterminateOutcome as error:
+            return self._mark_unknown(run_id, type(error).__name__)
         except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
             safe_reason = f"tool execution failed: {type(error).__name__}"
             self.ledger.update_run(run_id, ActionStatus.FAILED, reason=safe_reason)
@@ -286,6 +329,11 @@ class TrustedAction:
         self.ledger.append_event(run_id, "tool.execution.started", {})
         try:
             value = await self.function(**arguments)
+        except asyncio.CancelledError:
+            self._mark_unknown(run_id, "CancelledError")
+            raise
+        except IndeterminateOutcome as error:
+            return self._mark_unknown(run_id, type(error).__name__)
         except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
             safe_reason = f"tool execution failed: {type(error).__name__}"
             self.ledger.update_run(run_id, ActionStatus.FAILED, reason=safe_reason)
@@ -299,6 +347,16 @@ class TrustedAction:
         self.ledger.update_run(run_id, ActionStatus.COMPLETED, result=value)
         self.ledger.append_event(run_id, "tool.execution.succeeded", {})
         self.ledger.append_event(run_id, "run.completed", {})
+        return self._result_from_run(self.ledger.get_run(run_id))
+
+    def _mark_unknown(self, run_id: str, error_type: str) -> ActionResult:
+        reason = f"tool execution outcome uncertain: {error_type}"
+        self.ledger.update_run(run_id, ActionStatus.UNKNOWN, reason=reason)
+        self.ledger.append_event(
+            run_id,
+            "tool.execution.uncertain",
+            {"error_type": error_type, "reason": reason},
+        )
         return self._result_from_run(self.ledger.get_run(run_id))
 
     @staticmethod
