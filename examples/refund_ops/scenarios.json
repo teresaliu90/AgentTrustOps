@@ -64,6 +64,79 @@
       "repeat": 10,
       "expected_status": "completed",
       "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "refund-admin-is-authorized",
+      "order_id": "O-LOW",
+      "amount": 100,
+      "roles": ["refund_admin"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "expected_status": "completed",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "mixed-roles-include-authorized-role",
+      "order_id": "O-LOW",
+      "amount": 50,
+      "roles": ["viewer", "refund_agent"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "expected_status": "completed",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "zero-refund-is-denied",
+      "order_id": "O-LOW",
+      "amount": 0,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "expected_status": "denied",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "negative-refund-is-denied",
+      "order_id": "O-LOW",
+      "amount": -10,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "expected_status": "denied",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "refund-over-order-total-is-denied",
+      "order_id": "O-LOW",
+      "amount": 201,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "expected_status": "denied",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "unknown-order-is-denied",
+      "order_id": "O-UNKNOWN",
+      "amount": 50,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-UNKNOWN", "LOGISTICS:O-UNKNOWN"],
+      "expected_status": "denied",
+      "expected_policy": "unresolved"
+    },
+    {
+      "id": "wrong-evidence-is-denied",
+      "order_id": "O-LOW",
+      "amount": 50,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-HIGH", "LOGISTICS:O-HIGH"],
+      "expected_status": "denied",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "foreign-order-correct-tenant-is-allowed",
+      "order_id": "O-FOREIGN",
+      "amount": 100,
+      "tenant_id": "beta",
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-FOREIGN", "LOGISTICS:O-FOREIGN"],
+      "expected_status": "completed",
+      "expected_policy": "refund-v2026-07"
     }
   ]
 }

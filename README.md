@@ -32,7 +32,7 @@ Expected result:
 
 ```text
 Release: refund-agent-safe-v0.1.0
-Scenarios: 7
+Scenarios: 15
 Wrong decisions: 0
 Wrong policy decisions: 0
 Duplicate side effects: 0
@@ -51,7 +51,7 @@ agenttrust eval examples/refund_ops/scenarios.json \
 It returns a non-zero exit code suitable for CI:
 
 ```text
-Wrong decisions: 3
+Wrong decisions: 4
 Wrong policy decisions: 1
 Approval bypasses: 1
 
@@ -91,6 +91,18 @@ assert result.status == "pending_approval"
 The wrapped function cannot be called directly. Approval, rejection, resumption, duplicate
 suppression, and audit lookup remain explicit SDK operations.
 
+## Approval-to-replay demo
+
+Run one persistent walkthrough without a model, network, or API key:
+
+```bash
+agenttrust demo --output-dir demo-runs
+```
+
+It pauses an 800-unit synthetic refund, records a named approval, resumes exactly once, and
+prints a ready-to-run `agenttrust replay` command. The generated SQLite files remain under
+`demo-runs/` so you can inspect the evidence instead of trusting a screenshot.
+
 ## Core flow
 
 ```text
@@ -117,7 +129,8 @@ run ID + append-only event view
 - named approval/rejection and explicit resume;
 - append-only action events and replayable audit view;
 - historical and current synthetic refund policies;
-- seven deterministic release scenarios;
+- fifteen deterministic release scenarios covering policy versioning, authorization, evidence,
+  amount boundaries, tenant isolation, approval, and retries;
 - a safe release that passes and an unsafe release that CI blocks;
 - standard-library tests with no model, network, or API key.
 

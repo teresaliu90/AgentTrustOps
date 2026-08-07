@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from .ledger import SQLiteActionLedger
-from .refund_ops import evaluate_release
+from .refund_ops import evaluate_release, run_refund_demo
 
 
 def _eval(args: argparse.Namespace) -> int:
@@ -35,6 +35,19 @@ def _replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _demo(args: argparse.Namespace) -> int:
+    report = run_refund_demo(args.output_dir)
+    print("RefundOps approval walkthrough")
+    print(f"Run ID: {report['run_id']}")
+    print(f"States: {' -> '.join(report['states'])}")
+    print(f"Refund side effects: {report['refund_count']}")
+    print(f"Events: {' -> '.join(report['events'])}")
+    print(f"Ledger: {report['ledger']}")
+    print()
+    print(f"Replay: agenttrust replay {report['run_id']} --ledger {report['ledger']}")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="agenttrust",
@@ -54,6 +67,12 @@ def build_parser() -> argparse.ArgumentParser:
     replay.add_argument("run_id")
     replay.add_argument("--ledger", type=Path, required=True)
     replay.set_defaults(handler=_replay)
+
+    demo = subparsers.add_parser(
+        "demo", help="persist an approval, execution, and replay walkthrough"
+    )
+    demo.add_argument("--output-dir", type=Path, default=Path("demo-runs"))
+    demo.set_defaults(handler=_demo)
     return parser
 
 

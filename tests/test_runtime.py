@@ -10,7 +10,7 @@ from agenttrustops import (
     SQLiteActionLedger,
     trusted_action,
 )
-from agenttrustops.refund_ops import build_refund_action
+from agenttrustops.refund_ops import build_refund_action, run_refund_demo
 
 SAFE_POLICY = {
     "release": "test-safe",
@@ -145,6 +145,18 @@ class TrustedActionTests(unittest.TestCase):
             trail["integrity"],
             {"chain_verified": False, "mode": "sqlite_reference_ledger"},
         )
+
+    def test_persistent_demo_completes_once_and_keeps_replay_ledger(self) -> None:
+        report = run_refund_demo(Path(self.temporary.name) / "demo-runs")
+
+        self.assertEqual(
+            report["states"], ["pending_approval", "approved", "completed"]
+        )
+        self.assertEqual(report["refund_count"], 1)
+        self.assertTrue(Path(report["ledger"]).is_file())
+        trail = SQLiteActionLedger(report["ledger"]).audit_trail(report["run_id"])
+        self.assertIsNotNone(trail)
+        self.assertEqual(trail["events"][-1]["event_type"], "run.completed")
 
 
 if __name__ == "__main__":

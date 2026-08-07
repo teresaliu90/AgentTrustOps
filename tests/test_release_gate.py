@@ -17,7 +17,7 @@ class ReleaseGateTests(unittest.TestCase):
         )
 
         self.assertTrue(report["release_allowed"])
-        self.assertEqual(report["scenarios"], 7)
+        self.assertEqual(report["scenarios"], 15)
         self.assertEqual(report["wrong_decisions"], 0)
         self.assertEqual(report["wrong_policy_decisions"], 0)
         self.assertEqual(report["approval_bypasses"], 0)
@@ -30,7 +30,7 @@ class ReleaseGateTests(unittest.TestCase):
         )
 
         self.assertFalse(report["release_allowed"])
-        self.assertEqual(report["wrong_decisions"], 3)
+        self.assertEqual(report["wrong_decisions"], 4)
         self.assertEqual(report["wrong_policy_decisions"], 1)
         self.assertEqual(report["approval_bypasses"], 1)
         self.assertEqual(report["duplicate_side_effects"], 0)

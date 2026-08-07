@@ -10,6 +10,7 @@ from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+from uuid import uuid4
 
 from .ledger import SQLiteActionLedger
 from .models import ActionContext, ActionStatus, PolicyDecision, PolicyOutcome
@@ -290,3 +291,52 @@ def evaluate_release(
     )
     metrics["release_allowed"] = all(metrics[key] == 0 for key in blocking_metrics)
     return metrics
+
+
+def run_refund_demo(output_dir: str | Path) -> dict[str, Any]:
+    """Run and persist an approval-to-replay walkthrough."""
+
+    demo_dir = Path(output_dir) / f"refund-demo-{uuid4().hex[:8]}"
+    demo_dir.mkdir(parents=True, exist_ok=False)
+    ledger_path = demo_dir / "action-ledger.db"
+    refund_path = demo_dir / "refunds.db"
+    action, refunds = build_refund_action(
+        ledger_path=ledger_path,
+        refund_path=refund_path,
+        policy_config={
+            "release": "refund-agent-safe-v0.1.0",
+            "selection_mode": "as_of_order",
+            "approval_enabled": True,
+            "require_evidence": True,
+            "enforce_roles": True,
+            "allowed_roles": ["refund_agent", "refund_admin"],
+        },
+    )
+    context = ActionContext(
+        actor_id="refund-agent",
+        tenant_id="default",
+        roles=("refund_agent",),
+        evidence=("ORDER:O-HIGH", "LOGISTICS:O-HIGH"),
+    )
+    pending = action.invoke(context=context, order_id="O-HIGH", amount=800)
+    approved = action.approve(
+        pending.run_id,
+        approver_id="finance-manager",
+        note="Approved after reviewing synthetic order evidence",
+    )
+    completed = action.resume(pending.run_id)
+    trail = action.audit_trail(pending.run_id)
+    if trail is None:
+        raise RuntimeError("demo audit trail was not persisted")
+    return {
+        "run_id": pending.run_id,
+        "states": [
+            pending.status.value,
+            approved.status.value,
+            completed.status.value,
+        ],
+        "refund_count": refunds.count("O-HIGH"),
+        "events": [event["event_type"] for event in trail["events"]],
+        "ledger": str(ledger_path),
+        "refund_store": str(refund_path),
+    }
