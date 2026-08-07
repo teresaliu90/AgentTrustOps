@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agenttrustops"
+version = "0.1.0"
+description = "Policy-checked, approval-aware, idempotent, and replayable agent actions"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+authors = [{ name = "AgentTrustOps contributors" }]
+keywords = ["ai-agent", "tool-calling", "idempotency", "human-in-the-loop", "audit"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+[project.scripts]
+agenttrust = "agenttrustops.cli:main"
+
+[project.optional-dependencies]
+dev = ["ruff>=0.11,<1"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,32 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+      - run: ruff check src tests
+      - run: ruff format --check src tests
+      - run: python -m unittest discover -s tests -v
+      - run: agenttrust eval examples/refund_ops/scenarios.json --policy examples/refund_ops/policy-safe.json
+      - name: Prove unsafe release is blocked
+        run: |
+          if agenttrust eval examples/refund_ops/scenarios.json --policy examples/refund_ops/policy-unsafe.json; then
+            echo "unsafe release unexpectedly passed"
+            exit 1
+          fi

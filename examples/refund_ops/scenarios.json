@@ -1,0 +1,69 @@
+{
+  "dataset": "synthetic-refund-ops-v1",
+  "scenarios": [
+    {
+      "id": "current-low-risk-refund",
+      "order_id": "O-LOW",
+      "amount": 200,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "expected_status": "completed",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "high-risk-requires-approval",
+      "order_id": "O-HIGH",
+      "amount": 800,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-HIGH", "LOGISTICS:O-HIGH"],
+      "expected_status": "pending_approval",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "missing-logistics-evidence",
+      "order_id": "O-LOW",
+      "amount": 200,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-LOW"],
+      "expected_status": "denied",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "unauthorized-role",
+      "order_id": "O-LOW",
+      "amount": 200,
+      "roles": ["viewer"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "expected_status": "denied",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "historical-order-uses-historical-policy",
+      "order_id": "O-HIST",
+      "amount": 400,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-HIST", "LOGISTICS:O-HIST"],
+      "expected_status": "completed",
+      "expected_policy": "refund-v2026-01"
+    },
+    {
+      "id": "foreign-tenant-is-denied",
+      "order_id": "O-FOREIGN",
+      "amount": 100,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-FOREIGN", "LOGISTICS:O-FOREIGN"],
+      "expected_status": "denied",
+      "expected_policy": "refund-v2026-07"
+    },
+    {
+      "id": "ten-retries-still-one-side-effect",
+      "order_id": "O-LOW",
+      "amount": 200,
+      "roles": ["refund_agent"],
+      "evidence": ["ORDER:O-LOW", "LOGISTICS:O-LOW"],
+      "repeat": 10,
+      "expected_status": "completed",
+      "expected_policy": "refund-v2026-07"
+    }
+  ]
+}

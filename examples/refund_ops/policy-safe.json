@@ -1,0 +1,8 @@
+{
+  "release": "refund-agent-safe-v0.1.0",
+  "selection_mode": "as_of_order",
+  "approval_enabled": true,
+  "require_evidence": true,
+  "enforce_roles": true,
+  "allowed_roles": ["refund_agent", "refund_admin"]
+}
