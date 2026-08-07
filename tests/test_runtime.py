@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,8 @@ from pathlib import Path
 from agenttrustops import (
     ActionContext,
     ActionStatus,
+    PolicyDecision,
+    PolicyOutcome,
     SQLiteActionLedger,
     trusted_action,
 )
@@ -157,6 +160,144 @@ class TrustedActionTests(unittest.TestCase):
         trail = SQLiteActionLedger(report["ledger"]).audit_trail(report["run_id"])
         self.assertIsNotNone(trail)
         self.assertEqual(trail["events"][-1]["event_type"], "run.completed")
+
+
+class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.ledger = SQLiteActionLedger(Path(self.temporary.name) / "async-ledger.db")
+
+    def tearDown(self) -> None:
+        self.temporary.cleanup()
+
+    @staticmethod
+    def _allow_policy():
+        class AllowPolicy:
+            def evaluate(self, action_name, arguments, action_context):
+                return PolicyDecision(
+                    outcome=PolicyOutcome.ALLOW,
+                    reason="Synthetic async action allowed",
+                    policy_version="async-test-v1",
+                )
+
+        return AllowPolicy()
+
+    def _action(self, function):
+        return trusted_action(
+            ledger=self.ledger,
+            policy=self._allow_policy(),
+            risk="synthetic",
+            idempotency_key=lambda arguments, action_context: (
+                f"async:{action_context.tenant_id}:{arguments['item_id']}"
+            ),
+        )(function)
+
+    async def test_async_action_completes_and_stores_result(self) -> None:
+        async def fetch_item(item_id: str) -> dict[str, str]:
+            await asyncio.sleep(0)
+            return {"item_id": item_id, "state": "updated"}
+
+        action = self._action(fetch_item)
+        result = await action.invoke_async(
+            context=ActionContext(actor_id="test-agent"), item_id="A-1"
+        )
+
+        self.assertEqual(result.status, ActionStatus.COMPLETED)
+        self.assertEqual(result.value, {"item_id": "A-1", "state": "updated"})
+        self.assertEqual(
+            self.ledger.get_run(result.run_id)["result"],
+            {"item_id": "A-1", "state": "updated"},
+        )
+
+    async def test_async_action_waits_for_approval_then_resumes(self) -> None:
+        class ApprovalPolicy:
+            def evaluate(self, action_name, arguments, action_context):
+                return PolicyDecision(
+                    outcome=PolicyOutcome.APPROVAL_REQUIRED,
+                    reason="Synthetic approval required",
+                    policy_version="async-approval-v1",
+                )
+
+        executions: list[str] = []
+
+        @trusted_action(
+            ledger=self.ledger,
+            policy=ApprovalPolicy(),
+            risk="high",
+            idempotency_key=lambda arguments, action_context: "async-approval:A-2",
+        )
+        async def update_item(item_id: str) -> dict[str, str]:
+            executions.append(item_id)
+            return {"item_id": item_id}
+
+        pending = await update_item.invoke_async(
+            context=ActionContext(actor_id="test-agent"), item_id="A-2"
+        )
+        self.assertEqual(pending.status, ActionStatus.PENDING_APPROVAL)
+        self.assertEqual(executions, [])
+
+        update_item.approve(
+            pending.run_id,
+            approver_id="test-reviewer",
+            note="Approved synthetic async test",
+        )
+        completed = await update_item.resume_async(pending.run_id)
+
+        self.assertEqual(completed.status, ActionStatus.COMPLETED)
+        self.assertEqual(executions, ["A-2"])
+
+    async def test_concurrent_duplicate_async_calls_execute_once(self) -> None:
+        executions: list[str] = []
+
+        async def update_item(item_id: str) -> dict[str, str]:
+            executions.append(item_id)
+            await asyncio.sleep(0.02)
+            return {"item_id": item_id}
+
+        action = self._action(update_item)
+        first, second = await asyncio.gather(
+            action.invoke_async(
+                context=ActionContext(actor_id="agent-one"), item_id="A-3"
+            ),
+            action.invoke_async(
+                context=ActionContext(actor_id="agent-two"), item_id="A-3"
+            ),
+        )
+
+        self.assertEqual(first.run_id, second.run_id)
+        self.assertEqual(executions, ["A-3"])
+        self.assertEqual({first.duplicate, second.duplicate}, {False, True})
+
+    async def test_sync_invoke_on_async_action_creates_no_orphan_run(self) -> None:
+        async def update_item(item_id: str) -> dict[str, str]:
+            return {"item_id": item_id}
+
+        action = self._action(update_item)
+        with self.assertRaisesRegex(TypeError, "invoke_async"):
+            action.invoke(context=ActionContext(actor_id="test-agent"), item_id="A-4")
+
+        result = await action.invoke_async(
+            context=ActionContext(actor_id="test-agent"), item_id="A-4"
+        )
+        self.assertFalse(result.duplicate)
+        self.assertEqual(result.status, ActionStatus.COMPLETED)
+
+    async def test_async_tool_failure_becomes_safe_failed_state(self) -> None:
+        async def update_item(item_id: str) -> dict[str, str]:
+            raise RuntimeError(f"private failure for {item_id}")
+
+        action = self._action(update_item)
+        result = await action.invoke_async(
+            context=ActionContext(actor_id="test-agent"), item_id="A-5"
+        )
+
+        self.assertEqual(result.status, ActionStatus.FAILED)
+        self.assertEqual(result.reason, "tool execution failed: RuntimeError")
+        self.assertNotIn("private failure", result.reason)
+        self.assertEqual(
+            self.ledger.events(result.run_id)[-1]["event_type"],
+            "tool.execution.failed",
+        )
 
 
 if __name__ == "__main__":

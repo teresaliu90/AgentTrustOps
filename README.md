@@ -91,6 +91,29 @@ assert result.status == "pending_approval"
 The wrapped function cannot be called directly. Approval, rejection, resumption, duplicate
 suppression, and audit lookup remain explicit SDK operations.
 
+Async tools use explicit async entry points, which fit FastAPI and other event-loop-based agent
+runtimes without hiding blocking behavior:
+
+```python
+@trusted_action(
+    ledger=ledger,
+    policy=refund_policy,
+    risk="financial",
+    idempotency_key=lambda args, ctx: f"refund:{ctx.tenant_id}:{args['order_id']}",
+)
+async def execute_refund_async(order_id: str, amount: float):
+    return await payment_adapter.refund_async(order_id, amount)
+
+result = await execute_refund_async.invoke_async(
+    context=ActionContext(actor_id="refund-agent", tenant_id="acme"),
+    order_id="O-002",
+    amount=200,
+)
+```
+
+If approval is required, call `approve(...)` and then `await resume_async(run_id)`. Calling the
+sync API for an async tool fails before a ledger run is created.
+
 ## Approval-to-replay demo
 
 Run one persistent walkthrough without a model, network, or API key:
@@ -124,6 +147,7 @@ run ID + append-only event view
 ## What exists in v0.1
 
 - decorator-backed `TrustedAction` SDK;
+- explicit `invoke_async` and `resume_async` support for asynchronous agent tools;
 - tenant/action/idempotency uniqueness enforced in SQLite;
 - policy outcomes: allow, deny, or approval required;
 - named approval/rejection and explicit resume;

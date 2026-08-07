@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Callable
 from functools import update_wrapper
 from typing import Any, Protocol, TypeVar
@@ -52,11 +53,46 @@ class TrustedAction:
         update_wrapper(self, function)
 
     def __call__(self, *args: Any, **kwargs: Any) -> T:
+        method = "invoke_async" if self.is_async else "invoke"
         raise TypeError(
-            "trusted actions cannot be called directly; use .invoke(context=..., **arguments)"
+            f"trusted actions cannot be called directly; use .{method}(context=..., "
+            "**arguments)"
         )
 
+    @property
+    def is_async(self) -> bool:
+        """Whether the protected tool is declared with ``async def``."""
+
+        return inspect.iscoroutinefunction(self.function)
+
     def invoke(self, *, context: ActionContext, **arguments: Any) -> ActionResult:
+        if self.is_async:
+            raise TypeError("async trusted actions require 'await .invoke_async(...)'")
+        prepared = self._prepare_invoke(context, arguments)
+        if isinstance(prepared, ActionResult):
+            return prepared
+        return self._execute(prepared, arguments)
+
+    async def invoke_async(
+        self,
+        *,
+        context: ActionContext,
+        **arguments: Any,
+    ) -> ActionResult:
+        """Evaluate policy and await an asynchronous protected tool."""
+
+        if not self.is_async:
+            raise TypeError("sync trusted actions require '.invoke(...)'")
+        prepared = self._prepare_invoke(context, arguments)
+        if isinstance(prepared, ActionResult):
+            return prepared
+        return await self._execute_async(prepared, arguments)
+
+    def _prepare_invoke(
+        self,
+        context: ActionContext,
+        arguments: Arguments,
+    ) -> str | ActionResult:
         key = self.idempotency_key_factory(arguments, context).strip()
         if not key:
             raise ValueError("idempotency key cannot be empty")
@@ -141,7 +177,7 @@ class TrustedAction:
             policy_version=decision.policy_version,
             reason=decision.reason,
         )
-        return self._execute(run_id, arguments)
+        return run_id
 
     def approve(self, run_id: str, *, approver_id: str, note: str) -> ActionResult:
         if not approver_id.strip() or not note.strip():
@@ -178,6 +214,24 @@ class TrustedAction:
         return self._result_from_run(self.ledger.get_run(run_id))
 
     def resume(self, run_id: str) -> ActionResult:
+        if self.is_async:
+            raise TypeError("async trusted actions require 'await .resume_async(...)'")
+        run = self._prepare_resume(run_id)
+        if isinstance(run, ActionResult):
+            return run
+        return self._execute(run_id, run["arguments"])
+
+    async def resume_async(self, run_id: str) -> ActionResult:
+        """Resume an approved asynchronous action and await its tool call."""
+
+        if not self.is_async:
+            raise TypeError("sync trusted actions require '.resume(...)'")
+        run = self._prepare_resume(run_id)
+        if isinstance(run, ActionResult):
+            return run
+        return await self._execute_async(run_id, run["arguments"])
+
+    def _prepare_resume(self, run_id: str) -> dict[str, Any] | ActionResult:
         run = self.ledger.get_run(run_id)
         if run is None:
             raise KeyError("run not found")
@@ -188,7 +242,7 @@ class TrustedAction:
         if run["status"] != ActionStatus.APPROVED.value:
             raise ValueError("run must be approved before it can resume")
         self.ledger.append_event(run_id, "run.resumed", {})
-        return self._execute(run_id, run["arguments"])
+        return run
 
     def audit_trail(self, run_id: str) -> dict[str, Any] | None:
         return self.ledger.audit_trail(run_id)
@@ -203,6 +257,35 @@ class TrustedAction:
         self.ledger.append_event(run_id, "tool.execution.started", {})
         try:
             value = self.function(**arguments)
+        except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
+            safe_reason = f"tool execution failed: {type(error).__name__}"
+            self.ledger.update_run(run_id, ActionStatus.FAILED, reason=safe_reason)
+            self.ledger.append_event(
+                run_id,
+                "tool.execution.failed",
+                {"error_type": type(error).__name__},
+            )
+            return self._result_from_run(self.ledger.get_run(run_id))
+
+        self.ledger.update_run(run_id, ActionStatus.COMPLETED, result=value)
+        self.ledger.append_event(run_id, "tool.execution.succeeded", {})
+        self.ledger.append_event(run_id, "run.completed", {})
+        return self._result_from_run(self.ledger.get_run(run_id))
+
+    async def _execute_async(
+        self,
+        run_id: str,
+        arguments: Arguments,
+    ) -> ActionResult:
+        if not self.ledger.claim_execution(run_id):
+            run = self.ledger.get_run(run_id)
+            if run is None:
+                raise KeyError("run not found")
+            return self._result_from_run(run, duplicate=True)
+
+        self.ledger.append_event(run_id, "tool.execution.started", {})
+        try:
+            value = await self.function(**arguments)
         except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
             safe_reason = f"tool execution failed: {type(error).__name__}"
             self.ledger.update_run(run_id, ActionStatus.FAILED, reason=safe_reason)
