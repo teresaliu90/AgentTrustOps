@@ -19,6 +19,7 @@ class ActionStatus(StrEnum):
     PENDING_APPROVAL = "pending_approval"
     APPROVED = "approved"
     REJECTED = "rejected"
+    APPROVAL_EXPIRED = "approval_expired"
     EXECUTING = "executing"
     UNKNOWN = "unknown"
     COMPLETED = "completed"
@@ -40,6 +41,64 @@ class ActionContext:
     evidence: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        actor_id = self.actor_id.strip()
+        tenant_id = self.tenant_id.strip()
+        if not actor_id:
+            raise ValueError("actor_id cannot be empty")
+        if not tenant_id:
+            raise ValueError("tenant_id cannot be empty")
+        object.__setattr__(self, "actor_id", actor_id)
+        object.__setattr__(self, "tenant_id", tenant_id)
+        object.__setattr__(
+            self,
+            "roles",
+            tuple(
+                sorted({str(role).strip() for role in self.roles if str(role).strip()})
+            ),
+        )
+        object.__setattr__(
+            self,
+            "evidence",
+            tuple(
+                sorted(
+                    {str(item).strip() for item in self.evidence if str(item).strip()}
+                )
+            ),
+        )
+        object.__setattr__(self, "metadata", dict(self.metadata))
+
+
+@dataclass(frozen=True, slots=True)
+class VerifiedPrincipal:
+    """Identity asserted by a trusted application adapter.
+
+    Constructing this object does not authenticate a user. Production adapters
+    must create it only after verifying an OIDC token, service identity, mTLS
+    certificate, or an equivalent trusted credential.
+    """
+
+    actor_id: str
+    tenant_id: str
+    roles: tuple[str, ...]
+    auth_source: str
+
+    def __post_init__(self) -> None:
+        actor_id = self.actor_id.strip()
+        tenant_id = self.tenant_id.strip()
+        auth_source = self.auth_source.strip()
+        if not actor_id or not tenant_id or not auth_source:
+            raise ValueError("verified principal fields cannot be empty")
+        roles = tuple(
+            sorted({str(role).strip() for role in self.roles if str(role).strip()})
+        )
+        if not roles:
+            raise ValueError("verified principal needs at least one role")
+        object.__setattr__(self, "actor_id", actor_id)
+        object.__setattr__(self, "tenant_id", tenant_id)
+        object.__setattr__(self, "auth_source", auth_source)
+        object.__setattr__(self, "roles", roles)
+
 
 @dataclass(frozen=True, slots=True)
 class PolicyDecision:
@@ -47,6 +106,13 @@ class PolicyDecision:
     reason: str
     policy_version: str
     facts: dict[str, Any] = field(default_factory=dict)
+    policy_digest: str | None = None
+
+    def __post_init__(self) -> None:
+        if not self.reason.strip():
+            raise ValueError("policy decision reason cannot be empty")
+        if not self.policy_version.strip():
+            raise ValueError("policy version cannot be empty")
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +125,7 @@ class ActionResult:
     reason: str | None = None
     value: Any = None
     duplicate: bool = False
+    attempt: int = 0
 
     @property
     def executed(self) -> bool:
@@ -74,4 +141,18 @@ class ActionResult:
             "reason": self.reason,
             "value": self.value,
             "duplicate": self.duplicate,
+            "attempt": self.attempt,
+        }
+
+    def to_public_dict(self) -> dict[str, Any]:
+        """Return the default API-safe view without the idempotency key."""
+
+        return {
+            "run_id": self.run_id,
+            "action_name": self.action_name,
+            "status": self.status.value,
+            "policy_version": self.policy_version,
+            "reason": self.reason,
+            "value": self.value,
+            "attempt": self.attempt,
         }

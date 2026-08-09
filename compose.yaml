@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: agenttrustops
+      POSTGRES_USER: agenttrustops
+      POSTGRES_PASSWORD: local-demo-only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agenttrustops -d agenttrustops"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  control-plane:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AGENTTRUSTOPS_POSTGRES_DSN: postgresql://agenttrustops:local-demo-only@postgres:5432/agenttrustops
+    command:
+      - serve
+      - --refunds
+      - /data/refunds.db
+      - --identities
+      - /app/examples/api-identities.example.json
+      - --host
+      - 0.0.0.0
+    ports:
+      - "8787:8787"
+    read_only: true
+    tmpfs:
+      - /tmp
+    volumes:
+      - control-plane-data:/data
+
+volumes:
+  postgres-data:
+  control-plane-data:

@@ -4,26 +4,63 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agenttrustops"
-version = "0.1.0"
-description = "Policy-checked, approval-aware, idempotent, and replayable agent actions"
+version = "0.2.0"
+description = "Side-effect governance and crash-safe execution control for AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
 authors = [{ name = "AgentTrustOps contributors" }]
-keywords = ["ai-agent", "tool-calling", "idempotency", "human-in-the-loop", "audit"]
+keywords = [
+  "ai-agent",
+  "tool-calling",
+  "idempotency",
+  "human-in-the-loop",
+  "audit",
+  "governance",
+  "langgraph",
+]
 classifiers = [
-  "Development Status :: 3 - Alpha",
-  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 4 - Beta",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
 ]
+
+[project.urls]
+Homepage = "https://github.com/teresaliu90/AgentTrustOps"
+Documentation = "https://github.com/teresaliu90/AgentTrustOps#documentation"
+Repository = "https://github.com/teresaliu90/AgentTrustOps.git"
+Issues = "https://github.com/teresaliu90/AgentTrustOps/issues"
+Changelog = "https://github.com/teresaliu90/AgentTrustOps/blob/main/CHANGELOG.md"
 
 [project.scripts]
 agenttrust = "agenttrustops.cli:main"
 
 [project.optional-dependencies]
-dev = ["ruff>=0.11,<1"]
+api = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.30,<1",
+]
+postgres = ["psycopg[binary]>=3.2,<4"]
+oidc = ["PyJWT[crypto]>=2.13,<3"]
+dev = [
+  "build>=1.2,<2",
+  "httpx2>=2,<3",
+  "mypy>=2.3,<3",
+  "ruff>=0.11,<1",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+agenttrustops = ["py.typed"]
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true

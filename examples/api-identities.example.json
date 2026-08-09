@@ -1,0 +1,28 @@
+{
+  "identities": [
+    {
+      "token": "local-demo-invoker-token-change-me",
+      "actor_id": "refund-agent",
+      "tenant_id": "default",
+      "roles": [
+        "agenttrustops_invoker",
+        "agenttrustops_viewer",
+        "refund_agent"
+      ]
+    },
+    {
+      "token": "local-demo-manager-token-change-me",
+      "actor_id": "finance-manager",
+      "tenant_id": "default",
+      "roles": [
+        "agenttrustops_approver",
+        "agenttrustops_auditor",
+        "agenttrustops_executor",
+        "agenttrustops_observer",
+        "agenttrustops_operator",
+        "agenttrustops_reconciler",
+        "agenttrustops_viewer"
+      ]
+    }
+  ]
+}

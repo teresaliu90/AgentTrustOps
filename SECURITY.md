@@ -8,5 +8,14 @@ Include the affected version, a minimal reproduction using fictional data, impac
 mitigation. Do not test against systems or accounts you do not own or have explicit permission to
 use.
 
-AgentTrustOps is currently early alpha. See `docs/threat-model.md` and
-`docs/production-boundaries.md` for explicit non-claims.
+## Supported versions
+
+| Version | Security fixes |
+|---|---|
+| 0.2.x | Yes |
+| 0.1.x | Critical fixes only until 2026-11-08 |
+
+Maintainers will acknowledge a complete private report when repository notifications permit and
+will coordinate disclosure after a fix is available. No fixed response-time SLA is claimed.
+
+See `docs/threat-model.md` and `docs/production-boundaries.md` for explicit trust boundaries.

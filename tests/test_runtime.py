@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,10 +9,13 @@ from pathlib import Path
 from agenttrustops import (
     ActionContext,
     ActionStatus,
+    ApprovalDenied,
+    IdempotencyConflict,
     IndeterminateOutcome,
     PolicyDecision,
     PolicyOutcome,
     SQLiteActionLedger,
+    VerifiedPrincipal,
     trusted_action,
 )
 from agenttrustops.refund_ops import build_refund_action, run_refund_demo
@@ -34,6 +38,20 @@ def context(
         tenant_id="default",
         roles=roles,
         evidence=(f"ORDER:{order_id}", f"LOGISTICS:{order_id}"),
+    )
+
+
+def principal(
+    actor_id: str = "finance-manager",
+    *,
+    tenant_id: str = "default",
+    roles: tuple[str, ...] = ("agenttrustops_approver",),
+) -> VerifiedPrincipal:
+    return VerifiedPrincipal(
+        actor_id=actor_id,
+        tenant_id=tenant_id,
+        roles=roles,
+        auth_source="test-oidc",
     )
 
 
@@ -65,6 +83,55 @@ class TrustedActionTests(unittest.TestCase):
         self.assertTrue(all(result.duplicate for result in results[1:]))
         self.assertEqual(self.refunds.count("O-LOW"), 1)
 
+    def test_same_idempotency_key_with_different_request_is_rejected(self) -> None:
+        first = self.action.invoke(
+            context=context("O-LOW"), order_id="O-LOW", amount=100
+        )
+
+        with self.assertRaisesRegex(IdempotencyConflict, "different governed request"):
+            self.action.invoke(context=context("O-LOW"), order_id="O-LOW", amount=200)
+
+        self.assertEqual(first.value["amount"], 100)
+        self.assertEqual(self.refunds.count("O-LOW"), 1)
+
+    def test_same_idempotency_key_cannot_replay_across_actors(self) -> None:
+        self.action.invoke(context=context("O-LOW"), order_id="O-LOW", amount=100)
+        other_actor = ActionContext(
+            actor_id="other-agent",
+            tenant_id="default",
+            roles=("refund_agent",),
+            evidence=("ORDER:O-LOW", "LOGISTICS:O-LOW"),
+        )
+
+        with self.assertRaises(IdempotencyConflict):
+            self.action.invoke(context=other_actor, order_id="O-LOW", amount=100)
+
+    def test_same_idempotency_key_cannot_replay_with_different_metadata(self) -> None:
+        original_metadata = {"record_revision": "7"}
+        first_context = ActionContext(
+            actor_id="test-agent",
+            tenant_id="default",
+            roles=("refund_agent",),
+            evidence=("ORDER:O-LOW", "LOGISTICS:O-LOW"),
+            metadata=original_metadata,
+        )
+        self.action.invoke(context=first_context, order_id="O-LOW", amount=100)
+        original_metadata["record_revision"] = "8"
+
+        self.assertEqual(first_context.metadata, {"record_revision": "7"})
+        with self.assertRaises(IdempotencyConflict):
+            self.action.invoke(
+                context=ActionContext(
+                    actor_id="test-agent",
+                    tenant_id="default",
+                    roles=("refund_agent",),
+                    evidence=("ORDER:O-LOW", "LOGISTICS:O-LOW"),
+                    metadata={"record_revision": "8"},
+                ),
+                order_id="O-LOW",
+                amount=100,
+            )
+
     def test_high_risk_refund_waits_for_approval_then_resumes(self) -> None:
         pending = self.action.invoke(
             context=context("O-HIGH"), order_id="O-HIGH", amount=800
@@ -74,7 +141,7 @@ class TrustedActionTests(unittest.TestCase):
         self.assertEqual(self.refunds.count("O-HIGH"), 0)
         approved = self.action.approve(
             pending.run_id,
-            approver_id="finance-manager",
+            principal=principal(),
             note="Synthetic scenario approved for testing",
         )
         self.assertEqual(approved.status, ActionStatus.APPROVED)
@@ -82,6 +149,39 @@ class TrustedActionTests(unittest.TestCase):
 
         self.assertEqual(completed.status, ActionStatus.COMPLETED)
         self.assertEqual(self.refunds.count("O-HIGH"), 1)
+
+    def test_approval_requires_verified_tenant_role_and_separation_of_duties(
+        self,
+    ) -> None:
+        pending = self.action.invoke(
+            context=context("O-HIGH"), order_id="O-HIGH", amount=800
+        )
+
+        with self.assertRaisesRegex(ApprovalDenied, "different tenant"):
+            self.action.approve(
+                pending.run_id,
+                principal=principal(tenant_id="other"),
+                note="Wrong tenant",
+            )
+        with self.assertRaisesRegex(ApprovalDenied, "required approval role"):
+            self.action.approve(
+                pending.run_id,
+                principal=principal(roles=("viewer",)),
+                note="Wrong role",
+            )
+        with self.assertRaisesRegex(ApprovalDenied, "Self-approval|self-approval"):
+            self.action.approve(
+                pending.run_id,
+                principal=principal("test-agent"),
+                note="Requester cannot approve",
+            )
+
+        approved = self.action.approve(
+            pending.run_id,
+            principal=principal(),
+            note="Independent reviewer approved",
+        )
+        self.assertEqual(approved.status, ActionStatus.APPROVED)
 
     def test_missing_evidence_is_denied_without_side_effect(self) -> None:
         missing = ActionContext(
@@ -118,19 +218,50 @@ class TrustedActionTests(unittest.TestCase):
         self.assertEqual(executions, [])
         self.assertNotIn("private policy detail", result.reason)
 
+    def test_non_serializable_policy_decision_fails_closed(self) -> None:
+        executions: list[str] = []
+
+        class InvalidDecisionPolicy:
+            def evaluate(self, action_name, arguments, action_context):
+                return PolicyDecision(
+                    PolicyOutcome.ALLOW,
+                    "invalid decision",
+                    "invalid-v1",
+                    {"not_json": object()},
+                )
+
+        @trusted_action(
+            ledger=SQLiteActionLedger(
+                Path(self.temporary.name) / "invalid-decision.db"
+            ),
+            policy=InvalidDecisionPolicy(),
+            risk="financial",
+            idempotency_key=lambda arguments, action_context: "invalid-decision",
+        )
+        def dangerous_tool() -> dict[str, bool]:
+            executions.append("executed")
+            return {"executed": True}
+
+        result = dangerous_tool.invoke(context=ActionContext(actor_id="test-agent"))
+
+        self.assertEqual(result.status, ActionStatus.DENIED)
+        self.assertEqual(executions, [])
+        self.assertIn("could not be serialized", result.reason)
+
     def test_replay_contains_policy_approval_execution_and_completion(self) -> None:
         pending = self.action.invoke(
             context=context("O-HIGH"), order_id="O-HIGH", amount=800
         )
         self.action.approve(
             pending.run_id,
-            approver_id="finance-manager",
+            principal=principal(),
             note="Approved after reviewing synthetic order evidence",
         )
         self.action.resume(pending.run_id)
 
         trail = self.action.audit_trail(pending.run_id)
         self.assertIsNotNone(trail)
+        self.assertTrue(trail["run"]["policy_digest"].startswith("sha256:"))
         event_types = [event["event_type"] for event in trail["events"]]
         self.assertEqual(
             event_types,
@@ -147,8 +278,36 @@ class TrustedActionTests(unittest.TestCase):
         )
         self.assertEqual(
             trail["integrity"],
-            {"chain_verified": False, "mode": "sqlite_reference_ledger"},
+            {
+                "chain_verified": True,
+                "mode": "sha256_event_chain_sqlite",
+                "immutable": False,
+            },
         )
+        self.assertFalse(trail["sensitive_fields_included"])
+        serialized = json.dumps(trail)
+        self.assertNotIn("finance-manager", serialized)
+        self.assertNotIn("test-oidc", serialized)
+        self.assertNotIn("Approved after reviewing", serialized)
+
+    def test_audit_is_redacted_by_default_and_full_for_same_tenant_auditor(
+        self,
+    ) -> None:
+        result = self.action.invoke(
+            context=context("O-LOW"), order_id="O-LOW", amount=100
+        )
+
+        redacted = self.action.audit_trail(result.run_id)
+        full = self.action.audit_trail(
+            result.run_id,
+            principal=principal(roles=("agenttrustops_auditor",)),
+        )
+
+        self.assertTrue(redacted["run"]["arguments"]["redacted"])
+        self.assertFalse(redacted["sensitive_fields_included"])
+        self.assertEqual(full["run"]["arguments"]["amount"], 100)
+        self.assertTrue(full["sensitive_fields_included"])
+        self.assertTrue(full["integrity"]["chain_verified"])
 
     def test_persistent_demo_completes_once_and_keeps_replay_ledger(self) -> None:
         report = run_refund_demo(Path(self.temporary.name) / "demo-runs")
@@ -239,7 +398,7 @@ class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
 
         update_item.approve(
             pending.run_id,
-            approver_id="test-reviewer",
+            principal=principal("test-reviewer"),
             note="Approved synthetic async test",
         )
         completed = await update_item.resume_async(pending.run_id)
@@ -261,7 +420,7 @@ class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
                 context=ActionContext(actor_id="agent-one"), item_id="A-3"
             ),
             action.invoke_async(
-                context=ActionContext(actor_id="agent-two"), item_id="A-3"
+                context=ActionContext(actor_id="agent-one"), item_id="A-3"
             ),
         )
 
@@ -319,7 +478,10 @@ class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
         completed = action.reconcile(
             unknown.run_id,
             outcome="completed",
-            operator_id="reconciliation-worker",
+            principal=principal(
+                "reconciliation-worker",
+                roles=("agenttrustops_reconciler",),
+            ),
             note="Provider lookup confirms the charge committed",
             result={"provider_id": "p-123"},
         )
@@ -334,7 +496,10 @@ class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
             action.reconcile(
                 unknown.run_id,
                 outcome="failed",
-                operator_id="reconciliation-worker",
+                principal=principal(
+                    "reconciliation-worker",
+                    roles=("agenttrustops_reconciler",),
+                ),
                 note="Second resolution is not allowed",
             )
 
@@ -348,17 +513,7 @@ class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
                 context=ActionContext(actor_id="test-agent"), item_id="A-7"
             )
 
-        run = self.ledger.create_or_get_run(
-            run_id="unused",
-            tenant_id="default",
-            actor_id="test-agent",
-            roles=(),
-            evidence=(),
-            action_name=action.name,
-            risk="synthetic",
-            idempotency_key="async:default:A-7",
-            arguments={"item_id": "A-7"},
-        )[0]
+        run = self.ledger.list_runs(limit=1)[0]
         self.assertEqual(run["status"], ActionStatus.UNKNOWN.value)
 
 

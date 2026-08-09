@@ -4,18 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-from collections.abc import Callable
+import threading
+from collections.abc import Awaitable, Callable
 from functools import update_wrapper
-from typing import Any, Protocol, TypeVar
+from typing import Any, Literal, Never, Protocol, Self, TypeVar, cast
 from uuid import uuid4
 
-from .ledger import SQLiteActionLedger
+from .errors import ApprovalDenied
+from .ledger import SQLiteActionLedger, request_fingerprint
 from .models import (
     ActionContext,
     ActionResult,
     ActionStatus,
     PolicyDecision,
     PolicyOutcome,
+    VerifiedPrincipal,
 )
 
 T = TypeVar("T")
@@ -25,6 +28,50 @@ IdempotencyKey = Callable[[Arguments, ActionContext], str]
 
 class IndeterminateOutcome(Exception):
     """Signal that a provider may have committed a side effect before failing."""
+
+
+class _LeaseHeartbeat:
+    """Renew a live execution claim while user code is still running."""
+
+    def __init__(
+        self,
+        ledger: SQLiteActionLedger,
+        run_id: str,
+        owner: str,
+        lease_seconds: int,
+    ):
+        self.ledger = ledger
+        self.run_id = run_id
+        self.owner = owner
+        self.lease_seconds = lease_seconds
+        self._stop = threading.Event()
+        self._thread: threading.Thread | None = None
+
+    def __enter__(self) -> Self:
+        interval = max(0.25, self.lease_seconds / 3)
+
+        def renew() -> None:
+            while not self._stop.wait(interval):
+                if not self.ledger.heartbeat_execution(
+                    self.run_id,
+                    owner=self.owner,
+                    lease_seconds=self.lease_seconds,
+                ):
+                    return
+
+        self._thread = threading.Thread(
+            target=renew,
+            name=f"agenttrustops-heartbeat-{self.run_id}",
+            daemon=True,
+        )
+        self._thread.start()
+        return self
+
+    def __exit__(self, *args: object) -> Literal[False]:
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join(timeout=1)
+        return False
 
 
 class ActionPolicy(Protocol):
@@ -48,6 +95,11 @@ class TrustedAction:
         idempotency_key: IdempotencyKey,
         risk: str,
         name: str | None = None,
+        execution_lease_seconds: int = 60,
+        approval_ttl_seconds: int = 3600,
+        approval_roles: tuple[str, ...] = ("agenttrustops_approver",),
+        reconciliation_roles: tuple[str, ...] = ("agenttrustops_reconciler",),
+        allow_self_approval: bool = False,
     ):
         self.function = function
         self.ledger = ledger
@@ -55,9 +107,20 @@ class TrustedAction:
         self.idempotency_key_factory = idempotency_key
         self.risk = risk
         self.name = name or function.__name__
+        if not 1 <= execution_lease_seconds <= 86400:
+            raise ValueError("execution_lease_seconds must be between 1 and 86400")
+        if not 1 <= approval_ttl_seconds <= 604800:
+            raise ValueError("approval_ttl_seconds must be between 1 and 604800")
+        self.execution_lease_seconds = execution_lease_seconds
+        self.approval_ttl_seconds = approval_ttl_seconds
+        self.approval_roles = tuple(sorted(set(approval_roles)))
+        self.reconciliation_roles = tuple(sorted(set(reconciliation_roles)))
+        if not self.approval_roles or not self.reconciliation_roles:
+            raise ValueError("approval and reconciliation roles cannot be empty")
+        self.allow_self_approval = allow_self_approval
         update_wrapper(self, function)
 
-    def __call__(self, *args: Any, **kwargs: Any) -> T:
+    def __call__(self, *args: Any, **kwargs: Any) -> Never:
         method = "invoke_async" if self.is_async else "invoke"
         raise TypeError(
             f"trusted actions cannot be called directly; use .{method}(context=..., "
@@ -78,6 +141,28 @@ class TrustedAction:
             return prepared
         return self._execute(prepared, arguments)
 
+    def invoke_request(
+        self,
+        *,
+        context: ActionContext,
+        arguments: Arguments,
+        idempotency_key: str,
+    ) -> ActionResult:
+        """Invoke a sync action with a gateway-supplied idempotency key."""
+
+        if self.is_async:
+            raise TypeError(
+                "async trusted actions require 'await .invoke_request_async(...)'"
+            )
+        prepared = self._prepare_invoke(
+            context,
+            dict(arguments),
+            idempotency_key_override=idempotency_key,
+        )
+        if isinstance(prepared, ActionResult):
+            return prepared
+        return self._execute(prepared, dict(arguments))
+
     async def invoke_async(
         self,
         *,
@@ -93,14 +178,50 @@ class TrustedAction:
             return prepared
         return await self._execute_async(prepared, arguments)
 
+    async def invoke_request_async(
+        self,
+        *,
+        context: ActionContext,
+        arguments: Arguments,
+        idempotency_key: str,
+    ) -> ActionResult:
+        """Invoke an async action with a gateway-supplied idempotency key."""
+
+        if not self.is_async:
+            raise TypeError("sync trusted actions require '.invoke_request(...)'")
+        prepared = self._prepare_invoke(
+            context,
+            dict(arguments),
+            idempotency_key_override=idempotency_key,
+        )
+        if isinstance(prepared, ActionResult):
+            return prepared
+        return await self._execute_async(prepared, dict(arguments))
+
     def _prepare_invoke(
         self,
         context: ActionContext,
         arguments: Arguments,
+        *,
+        idempotency_key_override: str | None = None,
     ) -> str | ActionResult:
-        key = self.idempotency_key_factory(arguments, context).strip()
+        key = (
+            idempotency_key_override
+            if idempotency_key_override is not None
+            else self.idempotency_key_factory(arguments, context)
+        ).strip()
         if not key:
             raise ValueError("idempotency key cannot be empty")
+        fingerprint = request_fingerprint(
+            tenant_id=context.tenant_id,
+            actor_id=context.actor_id,
+            roles=context.roles,
+            evidence=context.evidence,
+            action_name=self.name,
+            risk=self.risk,
+            arguments=arguments,
+            metadata=context.metadata,
+        )
         run_id = f"run_{uuid4().hex}"
         run, created = self.ledger.create_or_get_run(
             run_id=run_id,
@@ -111,111 +232,92 @@ class TrustedAction:
             action_name=self.name,
             risk=self.risk,
             idempotency_key=key,
+            request_fingerprint=fingerprint,
             arguments=arguments,
+            metadata=context.metadata,
         )
         if not created:
-            self.ledger.append_event(
-                run["run_id"],
-                "retry.skipped_duplicate",
-                {"original_status": run["status"]},
-            )
+            self.ledger.expire_approvals(tenant_id=context.tenant_id)
+            self.ledger.recover_expired_executions(tenant_id=context.tenant_id)
+            self.ledger.record_duplicate(run["run_id"])
             return self._result_from_run(
                 self.ledger.get_run(run["run_id"]), duplicate=True
             )
-
-        self.ledger.append_event(
-            run_id,
-            "run.created",
-            {"action_name": self.name, "risk": self.risk},
-        )
         try:
             decision = self.policy.evaluate(self.name, arguments, context)
         except Exception as error:  # noqa: BLE001 - policy plug-ins are untrusted boundaries
-            safe_reason = f"policy evaluation failed: {type(error).__name__}"
-            self.ledger.update_run(run_id, ActionStatus.DENIED, reason=safe_reason)
-            self.ledger.append_event(
-                run_id,
-                "policy.failed",
+            decision = PolicyDecision(
+                PolicyOutcome.DENY,
+                f"policy evaluation failed: {type(error).__name__}",
+                "policy-error",
                 {"error_type": type(error).__name__},
             )
-            self.ledger.append_event(run_id, "run.denied", {"reason": safe_reason})
-            return self._result_from_run(self.ledger.get_run(run_id))
-        self.ledger.append_event(
-            run_id,
-            "policy.checked",
-            {
-                "outcome": decision.outcome.value,
-                "policy_version": decision.policy_version,
-                "reason": decision.reason,
-                "facts": decision.facts,
-            },
-        )
-
-        if decision.outcome is PolicyOutcome.DENY:
-            self.ledger.update_run(
+        try:
+            self.ledger.record_policy_decision(
                 run_id,
-                ActionStatus.DENIED,
-                policy_version=decision.policy_version,
-                reason=decision.reason,
+                decision,
+                approval_ttl_seconds=self.approval_ttl_seconds,
             )
-            self.ledger.append_event(run_id, "run.denied", {"reason": decision.reason})
-            return self._result_from_run(self.ledger.get_run(run_id))
-
-        if decision.outcome is PolicyOutcome.APPROVAL_REQUIRED:
-            self.ledger.update_run(
+        except (TypeError, ValueError, UnicodeError) as error:
+            decision = PolicyDecision(
+                PolicyOutcome.DENY,
+                f"policy decision could not be serialized: {type(error).__name__}",
+                "policy-error",
+                {"error_type": type(error).__name__},
+            )
+            self.ledger.record_policy_decision(
                 run_id,
-                ActionStatus.PENDING_APPROVAL,
-                policy_version=decision.policy_version,
-                reason=decision.reason,
+                decision,
+                approval_ttl_seconds=self.approval_ttl_seconds,
             )
-            self.ledger.request_approval(run_id)
-            self.ledger.append_event(
-                run_id,
-                "approval.requested",
-                {"reason": decision.reason, "policy_version": decision.policy_version},
-            )
+        if decision.outcome is not PolicyOutcome.ALLOW:
             return self._result_from_run(self.ledger.get_run(run_id))
-
-        self.ledger.update_run(
-            run_id,
-            ActionStatus.CREATED,
-            policy_version=decision.policy_version,
-            reason=decision.reason,
-        )
         return run_id
 
-    def approve(self, run_id: str, *, approver_id: str, note: str) -> ActionResult:
-        if not approver_id.strip() or not note.strip():
-            raise ValueError("approver_id and note are required")
+    def approve(
+        self,
+        run_id: str,
+        *,
+        principal: VerifiedPrincipal,
+        note: str,
+    ) -> ActionResult:
+        if not note.strip():
+            raise ValueError("approval note is required")
         if not self.ledger.decide_approval(
             run_id,
             approved=True,
-            approver_id=approver_id.strip(),
+            principal=principal,
             note=note.strip(),
+            required_roles=self.approval_roles,
+            allow_self_approval=self.allow_self_approval,
         ):
+            run = self.ledger.get_run(run_id)
+            if run is not None and run["status"] == ActionStatus.APPROVAL_EXPIRED.value:
+                raise ApprovalDenied("approval request has expired")
             raise ValueError("run is not waiting for approval")
-        self.ledger.append_event(
-            run_id,
-            "approval.approved",
-            {"approver_id": approver_id.strip(), "note": note.strip()},
-        )
         return self._result_from_run(self.ledger.get_run(run_id))
 
-    def reject(self, run_id: str, *, approver_id: str, note: str) -> ActionResult:
-        if not approver_id.strip() or not note.strip():
-            raise ValueError("approver_id and note are required")
+    def reject(
+        self,
+        run_id: str,
+        *,
+        principal: VerifiedPrincipal,
+        note: str,
+    ) -> ActionResult:
+        if not note.strip():
+            raise ValueError("rejection note is required")
         if not self.ledger.decide_approval(
             run_id,
             approved=False,
-            approver_id=approver_id.strip(),
+            principal=principal,
             note=note.strip(),
+            required_roles=self.approval_roles,
+            allow_self_approval=self.allow_self_approval,
         ):
+            run = self.ledger.get_run(run_id)
+            if run is not None and run["status"] == ActionStatus.APPROVAL_EXPIRED.value:
+                raise ApprovalDenied("approval request has expired")
             raise ValueError("run is not waiting for approval")
-        self.ledger.append_event(
-            run_id,
-            "approval.rejected",
-            {"approver_id": approver_id.strip(), "note": note.strip()},
-        )
         return self._result_from_run(self.ledger.get_run(run_id))
 
     def reconcile(
@@ -223,7 +325,7 @@ class TrustedAction:
         run_id: str,
         *,
         outcome: str,
-        operator_id: str,
+        principal: VerifiedPrincipal,
         note: str,
         result: Any = None,
     ) -> ActionResult:
@@ -231,8 +333,10 @@ class TrustedAction:
 
         if outcome not in {ActionStatus.COMPLETED.value, ActionStatus.FAILED.value}:
             raise ValueError("outcome must be 'completed' or 'failed'")
-        if not operator_id.strip() or not note.strip():
-            raise ValueError("operator_id and note are required")
+        if not note.strip():
+            raise ValueError("reconciliation note is required")
+        if not set(self.reconciliation_roles).intersection(principal.roles):
+            raise ApprovalDenied("principal lacks a required reconciliation role")
         run = self.ledger.get_run(run_id)
         if run is None:
             raise KeyError("run not found")
@@ -240,18 +344,13 @@ class TrustedAction:
             raise ValueError("run belongs to a different action")
         status = ActionStatus(outcome)
         if not self.ledger.reconcile_run(
-            run_id, status, reason=note.strip(), result=result
+            run_id,
+            status,
+            reason=note.strip(),
+            result=result,
+            principal=principal,
         ):
             raise ValueError("run is not waiting for reconciliation")
-        self.ledger.append_event(
-            run_id,
-            "run.reconciled",
-            {
-                "operator_id": operator_id.strip(),
-                "outcome": outcome,
-                "note": note.strip(),
-            },
-        )
         return self._result_from_run(self.ledger.get_run(run_id))
 
     def resume(self, run_id: str) -> ActionResult:
@@ -282,37 +381,48 @@ class TrustedAction:
             return self._result_from_run(run, duplicate=True)
         if run["status"] != ActionStatus.APPROVED.value:
             raise ValueError("run must be approved before it can resume")
-        self.ledger.append_event(run_id, "run.resumed", {})
         return run
 
-    def audit_trail(self, run_id: str) -> dict[str, Any] | None:
-        return self.ledger.audit_trail(run_id)
+    def audit_trail(
+        self,
+        run_id: str,
+        *,
+        principal: VerifiedPrincipal | None = None,
+    ) -> dict[str, Any] | None:
+        return self.ledger.audit_trail(run_id, principal=principal)
 
     def _execute(self, run_id: str, arguments: Arguments) -> ActionResult:
-        if not self.ledger.claim_execution(run_id):
+        owner = f"worker_{uuid4().hex}"
+        if not self.ledger.claim_execution(
+            run_id,
+            owner=owner,
+            lease_seconds=self.execution_lease_seconds,
+        ):
             run = self.ledger.get_run(run_id)
             if run is None:
                 raise KeyError("run not found")
             return self._result_from_run(run, duplicate=True)
 
-        self.ledger.append_event(run_id, "tool.execution.started", {})
         try:
-            value = self.function(**arguments)
-        except IndeterminateOutcome as error:
-            return self._mark_unknown(run_id, type(error).__name__)
-        except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
-            safe_reason = f"tool execution failed: {type(error).__name__}"
-            self.ledger.update_run(run_id, ActionStatus.FAILED, reason=safe_reason)
-            self.ledger.append_event(
+            with _LeaseHeartbeat(
+                self.ledger,
                 run_id,
-                "tool.execution.failed",
-                {"error_type": type(error).__name__},
+                owner,
+                self.execution_lease_seconds,
+            ):
+                value = self.function(**arguments)
+        except IndeterminateOutcome as error:
+            return self._mark_unknown(run_id, owner, type(error).__name__)
+        except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
+            self.ledger.fail_execution(
+                run_id, owner=owner, error_type=type(error).__name__
             )
             return self._result_from_run(self.ledger.get_run(run_id))
 
-        self.ledger.update_run(run_id, ActionStatus.COMPLETED, result=value)
-        self.ledger.append_event(run_id, "tool.execution.succeeded", {})
-        self.ledger.append_event(run_id, "run.completed", {})
+        try:
+            self.ledger.complete_execution(run_id, owner=owner, result=value)
+        except (TypeError, ValueError):
+            return self._mark_unknown(run_id, owner, "ResultSerializationError")
         return self._result_from_run(self.ledger.get_run(run_id))
 
     async def _execute_async(
@@ -320,42 +430,52 @@ class TrustedAction:
         run_id: str,
         arguments: Arguments,
     ) -> ActionResult:
-        if not self.ledger.claim_execution(run_id):
+        owner = f"worker_{uuid4().hex}"
+        if not self.ledger.claim_execution(
+            run_id,
+            owner=owner,
+            lease_seconds=self.execution_lease_seconds,
+        ):
             run = self.ledger.get_run(run_id)
             if run is None:
                 raise KeyError("run not found")
             return self._result_from_run(run, duplicate=True)
 
-        self.ledger.append_event(run_id, "tool.execution.started", {})
         try:
-            value = await self.function(**arguments)
+            with _LeaseHeartbeat(
+                self.ledger,
+                run_id,
+                owner,
+                self.execution_lease_seconds,
+            ):
+                value = await cast(Awaitable[Any], self.function(**arguments))
         except asyncio.CancelledError:
-            self._mark_unknown(run_id, "CancelledError")
+            self._mark_unknown(run_id, owner, "CancelledError")
             raise
         except IndeterminateOutcome as error:
-            return self._mark_unknown(run_id, type(error).__name__)
+            return self._mark_unknown(run_id, owner, type(error).__name__)
         except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
-            safe_reason = f"tool execution failed: {type(error).__name__}"
-            self.ledger.update_run(run_id, ActionStatus.FAILED, reason=safe_reason)
-            self.ledger.append_event(
-                run_id,
-                "tool.execution.failed",
-                {"error_type": type(error).__name__},
+            self.ledger.fail_execution(
+                run_id, owner=owner, error_type=type(error).__name__
             )
             return self._result_from_run(self.ledger.get_run(run_id))
 
-        self.ledger.update_run(run_id, ActionStatus.COMPLETED, result=value)
-        self.ledger.append_event(run_id, "tool.execution.succeeded", {})
-        self.ledger.append_event(run_id, "run.completed", {})
+        try:
+            self.ledger.complete_execution(run_id, owner=owner, result=value)
+        except (TypeError, ValueError):
+            return self._mark_unknown(run_id, owner, "ResultSerializationError")
         return self._result_from_run(self.ledger.get_run(run_id))
 
-    def _mark_unknown(self, run_id: str, error_type: str) -> ActionResult:
-        reason = f"tool execution outcome uncertain: {error_type}"
-        self.ledger.update_run(run_id, ActionStatus.UNKNOWN, reason=reason)
-        self.ledger.append_event(
+    def _mark_unknown(
+        self,
+        run_id: str,
+        owner: str,
+        error_type: str,
+    ) -> ActionResult:
+        self.ledger.mark_execution_unknown(
             run_id,
-            "tool.execution.uncertain",
-            {"error_type": error_type, "reason": reason},
+            owner=owner,
+            error_type=error_type,
         )
         return self._result_from_run(self.ledger.get_run(run_id))
 
@@ -376,6 +496,7 @@ class TrustedAction:
             reason=run["reason"],
             value=run["result"],
             duplicate=duplicate,
+            attempt=run["attempt"],
         )
 
 
@@ -386,6 +507,11 @@ def trusted_action(
     idempotency_key: IdempotencyKey,
     risk: str,
     name: str | None = None,
+    execution_lease_seconds: int = 60,
+    approval_ttl_seconds: int = 3600,
+    approval_roles: tuple[str, ...] = ("agenttrustops_approver",),
+    reconciliation_roles: tuple[str, ...] = ("agenttrustops_reconciler",),
+    allow_self_approval: bool = False,
 ) -> Callable[[Callable[..., T]], TrustedAction]:
     """Protect a business action behind policy, approval, and idempotency."""
 
@@ -397,6 +523,11 @@ def trusted_action(
             idempotency_key=idempotency_key,
             risk=risk,
             name=name,
+            execution_lease_seconds=execution_lease_seconds,
+            approval_ttl_seconds=approval_ttl_seconds,
+            approval_roles=approval_roles,
+            reconciliation_roles=reconciliation_roles,
+            allow_self_approval=allow_self_approval,
         )
 
     return decorator

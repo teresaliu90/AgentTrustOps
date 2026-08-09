@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 from contextlib import closing
@@ -13,7 +14,13 @@ from typing import Any
 from uuid import uuid4
 
 from .ledger import SQLiteActionLedger
-from .models import ActionContext, ActionStatus, PolicyDecision, PolicyOutcome
+from .models import (
+    ActionContext,
+    ActionStatus,
+    PolicyDecision,
+    PolicyOutcome,
+    VerifiedPrincipal,
+)
 from .runtime import TrustedAction, trusted_action
 
 
@@ -96,7 +103,25 @@ class RefundPolicy:
 
     def __init__(self, orders: OrderStore, config: dict[str, Any]):
         self.orders = orders
-        self.config = config
+        self.config = json.loads(json.dumps(config, sort_keys=True, allow_nan=False))
+        policy_material = {
+            "config": self.config,
+            "versions": [
+                {
+                    "version": version.version,
+                    "effective_from": version.effective_from.isoformat(),
+                    "auto_approve_limit": version.auto_approve_limit,
+                }
+                for version in self.versions
+            ],
+        }
+        encoded = json.dumps(
+            policy_material,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        ).encode()
+        self.policy_digest = "sha256:" + hashlib.sha256(encoded).hexdigest()
 
     def evaluate(
         self,
@@ -156,12 +181,14 @@ class RefundPolicy:
                 f"amount exceeds {policy.auto_approve_limit:.2f} approval threshold",
                 policy.version,
                 facts,
+                self.policy_digest,
             )
         return PolicyDecision(
             PolicyOutcome.ALLOW,
             "policy, identity, evidence, and amount checks passed",
             policy.version,
             facts,
+            self.policy_digest,
         )
 
     def _select_policy(self, ordered_at: date) -> RefundPolicyVersion:
@@ -174,13 +201,19 @@ class RefundPolicy:
             raise ValueError("no refund policy is effective for the order date")
         return eligible[-1]
 
-    @staticmethod
     def _deny(
+        self,
         reason: str,
         policy_version: str,
         facts: dict[str, Any] | None = None,
     ) -> PolicyDecision:
-        return PolicyDecision(PolicyOutcome.DENY, reason, policy_version, facts or {})
+        return PolicyDecision(
+            PolicyOutcome.DENY,
+            reason,
+            policy_version,
+            facts or {},
+            self.policy_digest,
+        )
 
 
 def build_refund_action(
@@ -190,6 +223,21 @@ def build_refund_action(
     policy_config: dict[str, Any],
 ) -> tuple[TrustedAction, RefundStore]:
     ledger = SQLiteActionLedger(ledger_path)
+    return build_refund_action_on_ledger(
+        ledger=ledger,
+        refund_path=refund_path,
+        policy_config=policy_config,
+    )
+
+
+def build_refund_action_on_ledger(
+    *,
+    ledger: SQLiteActionLedger,
+    refund_path: str | Path,
+    policy_config: dict[str, Any],
+) -> tuple[TrustedAction, RefundStore]:
+    """Build RefundOps on any ledger implementing the SQLite contract."""
+
     orders = OrderStore()
     refunds = RefundStore(refund_path)
     policy = RefundPolicy(orders, policy_config)
@@ -304,7 +352,7 @@ def run_refund_demo(output_dir: str | Path) -> dict[str, Any]:
         ledger_path=ledger_path,
         refund_path=refund_path,
         policy_config={
-            "release": "refund-agent-safe-v0.1.0",
+            "release": "refund-agent-safe-v0.2.0",
             "selection_mode": "as_of_order",
             "approval_enabled": True,
             "require_evidence": True,
@@ -321,7 +369,12 @@ def run_refund_demo(output_dir: str | Path) -> dict[str, Any]:
     pending = action.invoke(context=context, order_id="O-HIGH", amount=800)
     approved = action.approve(
         pending.run_id,
-        approver_id="finance-manager",
+        principal=VerifiedPrincipal(
+            actor_id="finance-manager",
+            tenant_id="default",
+            roles=("agenttrustops_approver",),
+            auth_source="synthetic-demo-identity",
+        ),
         note="Approved after reviewing synthetic order evidence",
     )
     completed = action.resume(pending.run_id)

@@ -1,70 +1,95 @@
 # AgentTrustOps
 
-**Stop unsafe AI-agent actions before they become business incidents.**
+[![CI](https://github.com/teresaliu90/AgentTrustOps/actions/workflows/ci.yml/badge.svg)](https://github.com/teresaliu90/AgentTrustOps/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/teresaliu90/AgentTrustOps/actions/workflows/codeql.yml/badge.svg)](https://github.com/teresaliu90/AgentTrustOps/actions/workflows/codeql.yml)
+[![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%E2%80%933.13-blue)](https://www.python.org/)
+[![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
 
-AgentTrustOps is an early-alpha Python SDK for policy-checked, approval-aware,
-idempotent, and replayable tool execution.
+**The side-effect control plane for AI agents.**
 
-## What it prevents
+Agent frameworks help a model decide which tool to call. AgentTrustOps governs whether a risky
+tool call may execute, who must approve it, how retries are deduplicated, and what operators do
+when the provider outcome is uncertain.
 
-- A new policy selects the wrong refund rules → **release blocked**
-- A timeout or retry submits the same refund ten times → **exactly one side effect**
-- A high-risk action bypasses approval → **execution paused**
-- A provider succeeds but the response is lost → **unknown, never blindly retried**
-- An incident cannot be explained → **inspect the event trail by run ID**
+It sits between an agent runtime and business APIs:
 
-This is a reference implementation using fictional orders and simulated refunds. It is not a
-payment system, identity provider, fraud engine, immutable ledger, or production certification.
+```text
+Agent / workflow
+       │ proposed action + stable Idempotency-Key
+       ▼
+AgentTrustOps ── policy ── deny
+       │          │
+       │          └──────── approval inbox ── verified approver
+       │
+       ├── transactional execution lease ── business API
+       ├── unknown outcome ──────────────── reconciliation
+       └── redacted, tamper-evident audit + durable metrics
+```
 
-## Two-minute proof
+## The operational problems it solves
 
-Python 3.11+ is the only runtime requirement.
+| Incident pattern | AgentTrustOps contract |
+|---|---|
+| A retry repeats a refund, email, deployment, or data mutation | Same key + same request returns the stored run; same key + different request is a `409` conflict |
+| A model or caller claims an admin role | HTTP identity is derived from a verified credential, never from request-body actor/tenant/roles |
+| A high-risk action bypasses a human | Approval is bound to tenant, request fingerprint, policy digest, expiry, role, and separation of duties |
+| A worker crashes after the provider may have committed | Execution lease expires to `unknown`; it is never blindly retried |
+| An operator cannot explain an incident | State and event append are one transaction; each per-run event is SHA-256 chained |
+| Audit endpoints leak prompts, evidence, tokens, or keys | Public responses omit credentials and idempotency keys; audit is redacted unless a same-tenant auditor is verified |
+| A safer policy regresses before release | Deterministic adversarial scenarios block CI without a model, network, or API key |
+
+## Five-minute runnable proof
+
+### Local SDK and release gate
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e .
+pip install -e '.[api,postgres,oidc,dev]'
 
 agenttrust eval examples/refund_ops/scenarios.json \
   --policy examples/refund_ops/policy-safe.json
+python -m unittest discover -s tests -v
 ```
 
-Expected result:
-
-```text
-Release: refund-agent-safe-v0.1.0
-Scenarios: 15
-Wrong decisions: 0
-Wrong policy decisions: 0
-Duplicate side effects: 0
-Approval bypasses: 0
-
-RELEASE ALLOWED
-```
-
-Now evaluate a deliberately unsafe release:
+The safe policy reports `RELEASE ALLOWED`. The deliberately unsafe policy exits non-zero:
 
 ```bash
 agenttrust eval examples/refund_ops/scenarios.json \
   --policy examples/refund_ops/policy-unsafe.json
 ```
 
-It returns a non-zero exit code suitable for CI:
+### Authenticated control plane with PostgreSQL
 
-```text
-Wrong decisions: 4
-Wrong policy decisions: 1
-Approval bypasses: 1
-
-RELEASE BLOCKED
+```bash
+docker compose up --build
 ```
 
-## SDK shape
+The included identities and database password are conspicuous local-demo values. With the stack
+running, submit a high-value synthetic refund:
+
+```bash
+curl -sS http://localhost:8787/v1/actions/execute_refund/invoke \
+  -H 'Authorization: Bearer local-demo-invoker-token-change-me' \
+  -H 'Idempotency-Key: refund-demo-request-0001' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "arguments": {"order_id": "O-HIGH", "amount": 800},
+    "evidence_refs": ["order-record", "logistics-record"]
+  }'
+```
+
+The response is `pending_approval`. Repeating the exact request returns the same public result and
+does not regenerate evidence or execute another side effect. Changing the amount while reusing
+the key returns a conflict. See [the API walkthrough](docs/api.md) for approval and resumption.
+
+## SDK
 
 ```python
 from agenttrustops import ActionContext, SQLiteActionLedger, trusted_action
 
 ledger = SQLiteActionLedger("actions.db")
+
 
 @trusted_action(
     ledger=ledger,
@@ -74,6 +99,7 @@ ledger = SQLiteActionLedger("actions.db")
 )
 def execute_refund(order_id: str, amount: float):
     return payment_adapter.refund(order_id, amount)
+
 
 result = execute_refund.invoke(
     context=ActionContext(
@@ -85,159 +111,113 @@ result = execute_refund.invoke(
     order_id="O-001",
     amount=800,
 )
-
-assert result.status == "pending_approval"
 ```
 
-The wrapped function cannot be called directly. Approval, rejection, resumption, duplicate
-suppression, and audit lookup remain explicit SDK operations.
+Direct calls to the wrapped function are blocked. Async actions use `invoke_async`. Gateways use
+`invoke_request` / `invoke_request_async` to supply the caller's `Idempotency-Key` explicitly.
 
-Async tools use explicit async entry points, which fit FastAPI and other event-loop-based agent
-runtimes without hiding blocking behavior:
+Approvals require a principal created by a trusted authentication adapter:
 
 ```python
-@trusted_action(
-    ledger=ledger,
-    policy=refund_policy,
-    risk="financial",
-    idempotency_key=lambda args, ctx: f"refund:{ctx.tenant_id}:{args['order_id']}",
-)
-async def execute_refund_async(order_id: str, amount: float):
-    return await payment_adapter.refund_async(order_id, amount)
+from agenttrustops import VerifiedPrincipal
 
-result = await execute_refund_async.invoke_async(
-    context=ActionContext(actor_id="refund-agent", tenant_id="acme"),
-    order_id="O-002",
-    amount=200,
+action.approve(
+    result.run_id,
+    principal=VerifiedPrincipal(
+        actor_id="finance-manager",
+        tenant_id="acme",
+        roles=("agenttrustops_approver",),
+        auth_source="verified-oidc",
+    ),
+    note="Reviewed order and logistics records",
 )
+completed = action.resume(result.run_id)
 ```
 
-If approval is required, call `approve(...)` and then `await resume_async(run_id)`. Calling the
-sync API for an async tool fails before a ledger run is created.
+Constructing `VerifiedPrincipal` does not itself authenticate anyone. Only an OIDC, workload
+identity, mTLS, or equivalent trusted adapter should construct one in production.
 
-## The crash-safe boundary
+## Crash-safe unknown outcomes
 
-An external API can commit a side effect even when the agent process times out before receiving a
-response. A tool that cannot determine its provider outcome should raise `IndeterminateOutcome`:
+No middleware can infer whether a remote side effect committed after a connection was lost.
+Adapters signal that ambiguity explicitly:
 
 ```python
 from agenttrustops import IndeterminateOutcome
 
 try:
-    return payment_adapter.charge(order_id, amount)
+    return provider.charge(order_id, amount)
 except ProviderResponseLost as error:
     raise IndeterminateOutcome from error
 ```
 
-AgentTrustOps records the run as `unknown`, suppresses blind retries, and keeps the decision open
-for a provider lookup. A trusted reconciliation worker resolves it exactly once:
+The run becomes `unknown`; duplicate execution stays suppressed. A verified reconciliation worker
+checks the provider and resolves the run once. Execution leases and automatic heartbeats also move
+abandoned workers to this safe state.
+
+## Deployment choices
+
+| Backend | Intended use | Concurrency |
+|---|---|---|
+| `SQLiteActionLedger` | SDK evaluation, tests, single-instance services | WAL + transactional write serialization |
+| `PostgresActionLedger` | Multi-process control-plane deployments | row-level claims and per-run event-chain locks |
+
+Install optional components with `agenttrustops[api]`, `agenttrustops[postgres]`, and
+`agenttrustops[oidc]`. The FastAPI control plane includes authenticated invocation, approval inbox,
+rejection, resume, reconciliation,
+tenant-scoped audit, recovery, health/readiness, and Prometheus metrics. Run `agenttrust doctor` to
+verify schema access and event chains.
+
+## Framework integration
+
+The dependency-free LangGraph adapter returns a state-in/partial-state-out node:
 
 ```python
-result = execute_refund.reconcile(
-    run_id,
-    outcome="completed",  # or "failed" after checking the provider
-    operator_id="reconciliation-worker",
-    note="Provider id p-123 confirms the side effect",
-    result={"provider_id": "p-123"},
+from agenttrustops import as_langgraph_node
+
+refund_node = as_langgraph_node(
+    execute_refund,
+    context=context_from_trusted_graph_config,
+    arguments=lambda state: state["refund_arguments"],
+    idempotency_key=lambda state: state["request_id"],
 )
 ```
 
-This is a local reference contract, not distributed exactly-once delivery. Production adapters
-still need provider idempotency, authenticated reconciliation workers, and durable monitoring.
+Branch on `state["agenttrustops"]["status"]` for `pending_approval` or `unknown`. AgentTrustOps is
+designed to compose with LangGraph, Temporal, OPA, Promptfoo, AgentOps, and other orchestration,
+policy, evaluation, or observability tools—not replace them. See [integrations](docs/integrations.md)
+and the [honest comparison](docs/comparison.md).
 
-## Approval-to-replay demo
+## Guarantees and non-guarantees
 
-Run one persistent walkthrough without a model, network, or API key:
+AgentTrustOps provides enforceable local/database contracts: fail-closed policy evaluation,
+request-fingerprint idempotency conflicts, atomic state/event transitions, bound approvals,
+single-owner execution claims, explicit unknown outcomes, and privacy-safe default views.
 
-```bash
-agenttrust demo --output-dir demo-runs
-```
+It does **not** claim distributed exactly-once delivery, cryptographic immutability, identity
+verification by a Python dataclass, rollback of irreversible side effects, compliance
+certification, or real-world adoption that has not happened. Provider-native idempotency remains a
+required second boundary.
 
-It pauses an 800-unit synthetic refund, records a named approval, resumes exactly once, and
-prints a ready-to-run `agenttrust replay` command. The generated SQLite files remain under
-`demo-runs/` so you can inspect the evidence instead of trusting a screenshot.
+## Documentation
 
-Try the async crash-window walkthrough too:
+- [Architecture and state machine](docs/architecture.md)
+- [HTTP API and end-to-end walkthrough](docs/api.md)
+- [Operations, PostgreSQL, metrics, backup, and incident runbook](docs/operations.md)
+- [Security model and privacy defaults](docs/threat-model.md)
+- [Production boundaries](docs/production-boundaries.md)
+- [Framework integrations](docs/integrations.md)
+- [Competitive comparison](docs/comparison.md)
+- [Evidence-based 8.6/10 scorecard](docs/scorecard.md)
+- [Independent design-partner feedback kit](docs/design-partner-feedback-kit.md)
+- [Migration from v0.1](docs/migration-v0.2.md)
+- [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
 
-```bash
-PYTHONPATH=src python examples/async_reconciliation.py
-```
+## Project status
 
-It runs without a model, API key, network, or real payment provider and prints:
-
-```text
-Initial result: unknown
-Retry result: unknown (duplicate=True)
-Reconciled result: completed
-Provider calls: 1
-```
-
-## Core flow
-
-```text
-Agent tool call
-      |
-      v
-TrustedAction -> Policy -> allow / deny / approval required
-      |                         |
-      v                         v
-Action Ledger             named human decision
-      |
-      v
-atomic execution claim -> business tool -> stored result
-      |
-      v
-run ID + append-only event view
-```
-
-## What exists in v0.1
-
-- decorator-backed `TrustedAction` SDK;
-- explicit `invoke_async` and `resume_async` support for asynchronous agent tools;
-- tenant/action/idempotency uniqueness enforced in SQLite;
-- policy outcomes: allow, deny, or approval required;
-- explicit `unknown -> reconcile -> completed/failed` handling for uncertain provider outcomes;
-- named approval/rejection and explicit resume;
-- append-only action events and replayable audit view;
-- historical and current synthetic refund policies;
-- fifteen deterministic release scenarios covering policy versioning, authorization, evidence,
-  amount boundaries, tenant isolation, approval, and retries;
-- a safe release that passes and an unsafe release that CI blocks;
-- standard-library tests with no model, network, or API key.
-
-## Repository map
-
-```text
-src/agenttrustops/       SDK, ledger, runtime, CLI and RefundOps reference app
-examples/                fictional release scenarios and async reconciliation walkthrough
-tests/                   idempotency, approval, denial, replay and release-gate tests
-docs/                    problem, non-goals, threat model and production boundaries
-.github/workflows/       clean Python 3.11/3.12 verification
-```
-
-## Run the tests
-
-```bash
-PYTHONPATH=src python -m unittest discover -s tests -v
-```
-
-## Security and production boundary
-
-Request-supplied tenant/roles are not authenticated identity. SQLite provides a reproducible
-reference ledger but reports `chain_verified: false`; it is not cryptographically tamper-proof.
-An external side effect may be impossible to roll back, so uncertain outcomes must be reconciled
-or escalated rather than blindly retried. Read the [threat model](docs/threat-model.md) and
-[production boundaries](docs/production-boundaries.md) before integrating a real tool.
-
-## Scope discipline
-
-The first release intentionally does not include a general workflow engine, model gateway,
-multi-agent framework, Kubernetes operator, full observability platform, or real payment
-connector. See [non-goals](docs/non-goals.md).
-
-## Contributing
-
-Bug reports, adversarial scenarios, policy adapters, and documentation improvements are welcome.
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
+v0.2 is a tested beta-quality foundation, not a compliance-certified managed service. CI covers
+Python 3.11–3.13, SQLite, a real PostgreSQL service, the API workflow, concurrency/crash contracts,
+package installation, dependency audit, and a deliberately unsafe release. Contributions and
+adversarial scenarios are welcome under the [contribution guide](CONTRIBUTING.md).
 
 Apache-2.0 licensed.

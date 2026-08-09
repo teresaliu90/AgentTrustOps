@@ -1,24 +1,25 @@
 # Production boundaries
 
-AgentTrustOps v0.1 is an early-alpha reference SDK. It proves local decision and idempotency
-contracts against fictional data; it does not certify a production integration.
+AgentTrustOps v0.2 is a beta-quality foundation with a deployable control plane and PostgreSQL
+contract tests. It does not certify a particular business integration.
 
-## Important boundaries
+- **Identity:** `ActionContext` remains an SDK trust-boundary input. The HTTP adapter instead derives
+  actor/tenant/roles through `IdentityVerifier`; applications must supply production-grade OIDC,
+  workload identity, or mTLS verification. The optional OIDC verifier covers signed JWT/JWKS
+  validation but still requires correct provider-specific issuer, audience, and claim mapping.
+- **Evidence:** the API accepts opaque references, not authoritative evidence. A server-side
+  resolver must fetch or validate facts from systems of record.
+- **Integrity:** event chains detect changes but are not immutable against an administrator who can
+  rewrite and rehash the whole database. Export to independent append-only storage when required.
+- **Exactly once:** database claims stop duplicate local execution. Distributed exactly-once is not
+  claimed; the provider must also enforce a stable idempotency key.
+- **Crash window:** ambiguous provider results and abandoned leases become `unknown`, suppressing
+  blind retry until verified reconciliation.
+- **Sensitive data:** default views redact payloads, but the reference schema stores arguments,
+  evidence, and results. Minimize, tokenize, encrypt, or omit them according to retention policy.
+- **Availability:** PostgreSQL supports multiple processes, but the repository does not ship a
+  regional HA topology or measured SLO.
+- **Adoption:** tests and demos are technical evidence, not proof of production use or compliance.
 
-- **Identity:** `ActionContext` values are application inputs. The SDK does not authenticate them.
-- **Ledger integrity:** events are append-only through the public API, but SQLite files can be
-  modified by an administrator. Audit views report `chain_verified: false`.
-- **Exactly-once language:** the demo prevents duplicate local execution for one stable
-  idempotency identity. Distributed exactly-once delivery is not claimed.
-- **Crash window:** if an external provider succeeds and the process crashes before storing the
-  result, adapters can raise `IndeterminateOutcome`; the run becomes `unknown`, suppresses blind
-  retries, and requires provider reconciliation or manual handling.
-- **Approval:** a production approval actor must come from authenticated identity and policy, not
-  an arbitrary request field.
-- **Sensitive data:** the demo stores action arguments for explainability. Production adapters
-  must redact, tokenize, encrypt, or avoid sensitive fields according to retention policy.
-- **Compensation:** some side effects cannot be reversed. Unknown outcomes must pause and escalate
-  rather than automatically retry.
-
-These boundaries are acceptance criteria for future production adapters, not hidden roadmap
-details.
+The included fictional RefundOps adapter never contacts a payment system and must not be mistaken
+for a production financial integration.

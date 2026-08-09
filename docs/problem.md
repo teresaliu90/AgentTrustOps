@@ -14,7 +14,7 @@ policy versions change, historical orders exist, large amounts need approval, re
 an incorrect duplicate can cause direct loss. The repository never connects to a real payment
 provider and contains no employer or customer data.
 
-## Success criteria for v0.1
+## Success criteria for v0.2
 
 1. Ten identical requests produce exactly one synthetic refund.
 2. A high-value refund cannot execute before a named approval.
@@ -22,3 +22,9 @@ provider and contains no employer or customer data.
 4. Missing evidence, wrong roles, and cross-tenant orders are denied.
 5. A deliberately unsafe release is blocked by a deterministic CLI evaluation.
 6. A run ID returns the ordered policy, approval, execution, and completion events.
+7. Reusing a key with any changed governed input produces a conflict.
+8. State and audit events roll back together when either write fails.
+9. A dead executor lease becomes unknown and cannot be revived or blindly retried.
+10. Approval and reconciliation require verified, same-tenant, authorized principals.
+11. Default API and audit responses omit sensitive bodies and idempotency keys.
+12. The contract runs through an authenticated API on SQLite and PostgreSQL.
