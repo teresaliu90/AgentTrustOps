@@ -5,6 +5,30 @@ minor releases may contain clearly documented breaking changes.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-10
+
+### Added
+
+- portable redacted audit bundles with source-chain verification, canonical SHA-256 digests,
+  optional Ed25519 signatures, pinned-key offline verification, and non-overwriting CLI commands;
+- direct OIDC/JWKS configuration for the reference server through CLI flags or environment;
+- machine-readable output for the persisted no-key demo;
+- adoption ladder, product conversion funnel, evidence-linked category comparison, and redesigned
+  GitHub first-screen narrative.
+
+### Changed
+
+- the README leads with a 60-second wheel-to-proof path and the side-effect commit-point wedge;
+- the roadmap distinguishes already shipped OPA/UI/integration work from external proof milestones;
+- production operations document signed export and OIDC startup boundaries.
+
+### Security
+
+- audit exports are always redacted, refuse broken source chains, and can be verified against a
+  separately distributed trusted public key;
+- static-demo identities and OIDC are mutually exclusive, and partial authentication configuration
+  fails closed.
+
 ## [0.2.0] - 2026-08-10
 
 ### Added

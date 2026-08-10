@@ -1,4 +1,4 @@
-# v0.2 non-goals
+# v0.3 non-goals
 
 AgentTrustOps has a narrow enforcement responsibility. It does not aim to:
 
@@ -11,7 +11,8 @@ AgentTrustOps has a narrow enforcement responsibility. It does not aim to:
 - ship a real payment connector, identity provider, fraud engine, or compliance certification;
 - claim high availability, regional failover, external production adoption, or SLOs without
   measured evidence;
-- build a large web console before the API and operator contracts have external design validation.
+- present the reference UI/CLI as a hosted managed service or substitute for an organization's
+  identity, key custody, WORM archive, provider, or incident-management boundary.
 
 The roadmap favors identity/policy/export adapters and real adoption evidence over broad framework
 wrappers that do not strengthen the side-effect boundary.

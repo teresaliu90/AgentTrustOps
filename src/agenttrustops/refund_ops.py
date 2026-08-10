@@ -352,7 +352,7 @@ def run_refund_demo(output_dir: str | Path) -> dict[str, Any]:
         ledger_path=ledger_path,
         refund_path=refund_path,
         policy_config={
-            "release": "refund-agent-safe-v0.2.0",
+            "release": "refund-agent-safe-v0.3.0",
             "selection_mode": "as_of_order",
             "approval_enabled": True,
             "require_evidence": True,

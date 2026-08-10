@@ -28,7 +28,7 @@ body:
     id: version
     attributes:
       label: Version or commit
-      placeholder: v0.2.0
+      placeholder: v0.3.0
     validations:
       required: true
   - type: dropdown
@@ -39,6 +39,24 @@ body:
         - SQLite
         - PostgreSQL
         - Not deployed yet
+    validations:
+      required: true
+  - type: input
+    id: time_to_proof
+    attributes:
+      label: Unassisted time to first completed demo
+      placeholder: 4 minutes, or blocked at wheel install
+    validations:
+      required: true
+  - type: dropdown
+    id: audit_proof
+    attributes:
+      label: Signed audit proof
+      options:
+        - Pinned-key verification completed
+        - Digest-only verification completed
+        - Not attempted
+        - Blocked
     validations:
       required: true
   - type: textarea

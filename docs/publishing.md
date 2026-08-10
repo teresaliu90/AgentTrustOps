@@ -15,7 +15,7 @@ verification can additionally bind an artifact digest to this repository and wor
 The same tag workflow publishes these OCI tags:
 
 ```text
-ghcr.io/teresaliu90/agenttrustops:v0.2.0
+ghcr.io/teresaliu90/agenttrustops:v0.3.0
 ghcr.io/teresaliu90/agenttrustops:latest
 ```
 

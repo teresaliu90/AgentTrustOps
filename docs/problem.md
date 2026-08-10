@@ -14,7 +14,7 @@ policy versions change, historical orders exist, large amounts need approval, re
 an incorrect duplicate can cause direct loss. The repository never connects to a real payment
 provider and contains no employer or customer data.
 
-## Success criteria for v0.2
+## Success criteria through v0.3
 
 1. Ten identical requests produce exactly one synthetic refund.
 2. A high-value refund cannot execute before a named approval.
@@ -28,3 +28,6 @@ provider and contains no employer or customer data.
 10. Approval and reconciliation require verified, same-tenant, authorized principals.
 11. Default API and audit responses omit sensitive bodies and idempotency keys.
 12. The contract runs through an authenticated API on SQLite and PostgreSQL.
+13. The reference server can fail closed into either static-demo or OIDC/JWKS authentication.
+14. A redacted export refuses a broken source chain and detects offline payload/signature tampering
+    against a pinned public key.

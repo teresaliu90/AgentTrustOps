@@ -102,7 +102,7 @@ def create_app(
     resolve_context = context_resolver or PrincipalContextResolver()
     app = FastAPI(
         title="AgentTrustOps Control Plane",
-        version="0.2.0",
+        version="0.3.0",
         description=(
             "Policy, approval, idempotency, reconciliation, and audit endpoints "
             "for explicitly registered agent actions."

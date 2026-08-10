@@ -1111,6 +1111,9 @@ class SQLiteActionLedger:
             **run,
             "actor_id": _digest(run["actor_id"]),
             "idempotency_key": _digest(run["idempotency_key"]),
+            "reason": None
+            if run["reason"] is None
+            else {"redacted": True, "digest": _digest(run["reason"])},
             "arguments": {"redacted": True, "digest": _digest(run["arguments"])},
             "roles": (),
             "evidence": {
@@ -1139,6 +1142,7 @@ class SQLiteActionLedger:
             "operator_id",
             "auth_source",
             "owner",
+            "reason",
         }
         redacted: list[dict[str, Any]] = []
         for event in events:

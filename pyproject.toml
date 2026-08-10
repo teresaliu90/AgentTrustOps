@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agenttrustops"
-version = "0.2.0"
+version = "0.3.0"
 description = "Side-effect governance and crash-safe execution control for AI agents"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -45,6 +45,7 @@ api = [
 ]
 postgres = ["psycopg[binary]>=3.2,<4"]
 oidc = ["PyJWT[crypto]>=2.13,<3"]
+audit = ["cryptography>=46,<51"]
 openai = ["openai-agents>=0.18,<1"]
 mcp = ["mcp>=1.29,<2"]
 dev = [

@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: If AgentTrustOps supports your research or evaluation, cite this software release.
 title: AgentTrustOps
 type: software
-version: 0.2.0
+version: 0.3.0
 date-released: 2026-08-10
 authors:
   - name: AgentTrustOps contributors

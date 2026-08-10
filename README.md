@@ -7,97 +7,80 @@
 [![Release](https://img.shields.io/github/v/release/teresaliu90/AgentTrustOps?display_name=tag)](https://github.com/teresaliu90/AgentTrustOps/releases)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/teresaliu90/AgentTrustOps/badge)](https://scorecard.dev/viewer/?uri=github.com/teresaliu90/AgentTrustOps)
 
-**The side-effect control plane for AI agents.**
+![AgentTrustOps controls the commit point between agent intent and business effect](docs/assets/agenttrustops-hero.svg)
 
-Agent frameworks help a model decide which tool to call. AgentTrustOps governs whether a risky
-tool call may execute, who must approve it, how retries are deduplicated, and what operators do
-when the provider outcome is uncertain.
+**AgentTrustOps is the side-effect control plane for AI agents.** It governs the commit point where
+a model-generated intention becomes a refund, deployment, message, account change, or other costly
+mutation.
 
-It sits between an agent runtime and business APIs:
+Frameworks orchestrate what an agent should do. Guardrails inspect content and traces. Policy
+engines return decisions. Workflow engines make code durable. AgentTrustOps composes with all four
+and owns a narrower transaction: **verified authority → policy → bound approval → one execution
+claim → unknown-outcome reconciliation → portable audit evidence**.
+
+## Prove the core contract in 60 seconds
+
+No model, API key, Docker, or cloned repository is required:
+
+```bash
+pip install "agenttrustops @ https://github.com/teresaliu90/AgentTrustOps/releases/download/v0.3.0/agenttrustops-0.3.0-py3-none-any.whl"
+agenttrust demo --output-dir demo-runs
+```
+
+The command persists a real SQLite ledger and prints a replayable result:
 
 ```text
-Agent / workflow
-       │ proposed action + stable Idempotency-Key
-       ▼
-AgentTrustOps ── policy ── deny
-       │          │
-       │          └──────── approval inbox ── verified approver
-       │
-       ├── transactional execution lease ── business API
-       ├── unknown outcome ──────────────── reconciliation
-       └── redacted, tamper-evident audit + durable metrics
+States: pending_approval -> approved -> completed
+Refund side effects: 1
+Events: run.created -> policy.checked -> approval.requested -> ... -> run.completed
+Replay: agenttrust replay <run-id> --ledger <path>/action-ledger.db
 ```
 
-## The operational problems it solves
+The proof is intentionally synthetic. It demonstrates the state, retry, approval, and audit
+contracts without pretending to be a production adopter.
 
-| Incident pattern | AgentTrustOps contract |
+## Why this is a distinct product, not another agent framework
+
+| Existing layer | Its primary job | The runtime gap AgentTrustOps closes |
+|---|---|---|
+| LangGraph / agent runtimes | Plan, route, interrupt, and resume agent work | A framework-independent commit contract for the business mutation |
+| OPA / policy engines | Answer whether input is allowed | Durable lifecycle after the decision: approval, claim, execute, recover, reconcile |
+| Temporal / durable workflows | Schedule and retry reliable application code | Agent-specific evidence, changed-request conflicts, privacy-safe side-effect evidence |
+| Prompt/trace guardrails | Detect unsafe text, calls, or behavior | Transactionally block and record the effect instead of only observing it |
+
+This is a complementary boundary, not a claim to replace those mature ecosystems. See the
+[evidence-linked competitive analysis](docs/comparison.md).
+
+## The contracts that matter after the demo
+
+| Failure mode | Enforced behavior |
 |---|---|
-| A retry repeats a refund, email, deployment, or data mutation | Same key + same request returns the stored run; same key + different request is a `409` conflict |
-| A model or caller claims an admin role | HTTP identity is derived from a verified credential, never from request-body actor/tenant/roles |
-| A high-risk action bypasses a human | Approval is bound to tenant, request fingerprint, policy digest, expiry, role, and separation of duties |
-| A worker crashes after the provider may have committed | Execution lease expires to `unknown`; it is never blindly retried |
-| An operator cannot explain an incident | State and event append are one transaction; each per-run event is SHA-256 chained |
-| Audit endpoints leak prompts, evidence, tokens, or keys | Public responses omit credentials and idempotency keys; audit is redacted unless a same-tenant auditor is verified |
-| A safer policy regresses before release | Deterministic adversarial scenarios block CI without a model, network, or API key |
+| A retry repeats a side effect | Same key + same governed request returns the stored run; changed actor, evidence, risk, metadata, or arguments is a hard conflict |
+| A caller claims an admin identity | HTTP actor, tenant, and roles come only from a verified static-demo or OIDC/JWKS credential |
+| A high-risk call bypasses review | Approval is bound to tenant, role, fingerprint, policy digest, expiry, and separation of duties |
+| A worker dies around the provider commit | Leases and heartbeats move abandoned execution to `unknown`; AgentTrustOps never blindly retries it |
+| An incident cannot be reconstructed | State and event append commit together; each run has a count/head-anchored SHA-256 event chain |
+| An auditor cannot trust a database screenshot | Redacted evidence bundles can be Ed25519-signed and verified offline against a pinned public key |
+| A safer release regresses | Deterministic adversarial scenarios block CI without a model or network |
 
-## Five-minute runnable proof
+## Make audit evidence portable
 
-Install the attested release wheel directly from GitHub:
-
-```bash
-pip install "agenttrustops[api] @ https://github.com/teresaliu90/AgentTrustOps/releases/download/v0.2.0/agenttrustops-0.2.0-py3-none-any.whl"
-```
-
-For development from the repository, use the editable path below.
-
-### Local SDK and release gate
+Install the audit extra, generate an offline signing identity, and export the ledger printed by the
+demo:
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e '.[api,postgres,oidc,dev]'
-
-agenttrust eval examples/refund_ops/scenarios.json \
-  --policy examples/refund_ops/policy-safe.json
-python -m unittest discover -s tests -v
+pip install "agenttrustops[audit] @ https://github.com/teresaliu90/AgentTrustOps/releases/download/v0.3.0/agenttrustops-0.3.0-py3-none-any.whl"
+agenttrust audit-keygen --private-key audit-private.pem --public-key audit-public.pem
+agenttrust audit-export --ledger <ledger-from-demo> --signing-key audit-private.pem --output evidence.json
+agenttrust audit-verify evidence.json --public-key audit-public.pem
 ```
 
-The safe policy reports `RELEASE ALLOWED`. The deliberately unsafe policy exits non-zero:
+The export refuses a failed source event chain and excludes raw arguments, evidence, results,
+actors, approval notes, and idempotency keys. A pinned signature proves that the portable export was
+not changed after signing. It does not turn an administrator-controlled source database into WORM
+storage; the exact trust boundary is documented in [audit evidence](docs/audit-evidence.md).
 
-```bash
-agenttrust eval examples/refund_ops/scenarios.json \
-  --policy examples/refund_ops/policy-unsafe.json
-```
-
-### Authenticated control plane with PostgreSQL
-
-```bash
-docker compose up --build
-```
-
-Open `http://localhost:8787/ui` for the built-in approval, resume, and reconciliation console. The
-browser keeps the bearer credential in memory only; refresh or **Clear** removes it. Every operation
-still passes through the API's tenant and role checks.
-
-The included identities and database password are conspicuous local-demo values. With the stack
-running, submit a high-value synthetic refund:
-
-```bash
-curl -sS http://localhost:8787/v1/actions/execute_refund/invoke \
-  -H 'Authorization: Bearer local-demo-invoker-token-change-me' \
-  -H 'Idempotency-Key: refund-demo-request-0001' \
-  -H 'Content-Type: application/json' \
-  -d '{
-    "arguments": {"order_id": "O-HIGH", "amount": 800},
-    "evidence_refs": ["order-record", "logistics-record"]
-  }'
-```
-
-The response is `pending_approval`. Repeating the exact request returns the same public result and
-does not regenerate evidence or execute another side effect. Changing the amount while reusing
-the key returns a conflict. See [the API walkthrough](docs/api.md) for approval and resumption.
-
-## SDK
+## SDK: wrap the irreversible function
 
 ```python
 from agenttrustops import ActionContext, SQLiteActionLedger, trusted_action
@@ -127,132 +110,104 @@ result = execute_refund.invoke(
 )
 ```
 
-Direct calls to the wrapped function are blocked. Async actions use `invoke_async`. Gateways use
-`invoke_request` / `invoke_request_async` to supply the caller's `Idempotency-Key` explicitly.
+Direct calls to the wrapped function are blocked. Async actions use `invoke_async`. HTTP and tool
+gateways use `invoke_request` to supply the caller's stable `Idempotency-Key` explicitly.
+`ActionContext` is trusted SDK input; production gateways must derive it from authenticated identity
+and systems of record, never model-visible arguments.
 
-Approvals require a principal created by a trusted authentication adapter:
+## Production-shaped control plane
 
-```python
-from agenttrustops import VerifiedPrincipal
+Use SQLite for evaluation or one service instance. Use PostgreSQL for multi-process claims and
+per-run event-chain locks. The FastAPI application provides authenticated invoke, approval, reject,
+resume, reconciliation, audit, recovery, readiness, metrics, and a browser operations console.
 
-action.approve(
-    result.run_id,
-    principal=VerifiedPrincipal(
-        actor_id="finance-manager",
-        tenant_id="acme",
-        roles=("agenttrustops_approver",),
-        auth_source="verified-oidc",
-    ),
-    note="Reviewed order and logistics records",
-)
-completed = action.resume(result.run_id)
+The included Compose stack is a local demo:
+
+```bash
+docker compose up --build
 ```
 
-Constructing `VerifiedPrincipal` does not itself authenticate anyone. Only an OIDC, workload
-identity, mTLS, or equivalent trusted adapter should construct one in production.
+For an OIDC-backed reference server, install `agenttrustops[api,postgres,oidc]`, set
+`AGENTTRUSTOPS_POSTGRES_DSN`, and run:
 
-## Crash-safe unknown outcomes
-
-No middleware can infer whether a remote side effect committed after a connection was lost.
-Adapters signal that ambiguity explicitly:
-
-```python
-from agenttrustops import IndeterminateOutcome
-
-try:
-    return provider.charge(order_id, amount)
-except ProviderResponseLost as error:
-    raise IndeterminateOutcome from error
+```bash
+agenttrust serve \
+  --refunds refunds.db \
+  --oidc-issuer https://identity.example \
+  --oidc-audience agenttrustops-api \
+  --oidc-jwks-url https://identity.example/.well-known/jwks.json
 ```
 
-The run becomes `unknown`; duplicate execution stays suppressed. A verified reconciliation worker
-checks the provider and resolves the run once. Execution leases and automatic heartbeats also move
-abandoned workers to this safe state.
+Issuer, audience, expiry, asymmetric algorithm, subject, tenant, and roles are verified. Static
+identity files remain explicitly demo-only. TLS, secret management, authoritative evidence lookup,
+provider-native idempotency, retention, and HA remain deployment responsibilities; read the
+[production boundaries](docs/production-boundaries.md) before integrating a real mutation.
 
-## Deployment choices
+## Integrate without moving authority into the prompt
 
-| Backend | Intended use | Concurrency |
-|---|---|---|
-| `SQLiteActionLedger` | SDK evaluation, tests, single-instance services | WAL + transactional write serialization |
-| `PostgresActionLedger` | Multi-process control-plane deployments | row-level claims and per-run event-chain locks |
-
-Install optional components with `agenttrustops[api]`, `agenttrustops[postgres]`,
-`agenttrustops[oidc]`, `agenttrustops[openai]`, and `agenttrustops[mcp]`. The FastAPI control plane includes authenticated
-invocation, browser approval inbox, rejection, resume, reconciliation,
-tenant-scoped audit, recovery, health/readiness, and Prometheus metrics. Run `agenttrust doctor` to
-verify schema access and event chains.
-
-## Framework integration
-
-Adapters are included for LangGraph, OpenAI Agents SDK, MCP hosts, and OPA. The dependency-free
-LangGraph adapter returns a state-in/partial-state-out node:
+Tested adapters are included for LangGraph, OpenAI Agents SDK, FastMCP, and the OPA Data API. In
+every adapter the model sees only business arguments; verified identity, evidence, and retry keys
+come from trusted application context.
 
 ```python
-from agenttrustops import as_langgraph_node
-
-refund_node = as_langgraph_node(
+refund_tool = as_openai_agents_tool(
     execute_refund,
-    context=context_from_trusted_graph_config,
-    arguments=lambda state: state["refund_arguments"],
-    idempotency_key=lambda state: state["request_id"],
+    params_json_schema=refund_schema,
+    context=context_from_authenticated_session,
+    idempotency_key=request_id_from_application,
 )
 ```
 
-Branch on `state["agenttrustops"]["status"]` for `pending_approval` or `unknown`. All adapters keep
-verified identity and retry authority outside model-visible arguments. AgentTrustOps composes with
-orchestration, policy, evaluation, and observability systems rather than replacing them. See
-[integrations](docs/integrations.md) and the [honest comparison](docs/comparison.md).
+See [framework integrations](docs/integrations.md) for the executable contracts and dependency
+extras.
 
-## Use it as a GitHub release gate
+## Release and supply-chain evidence
 
 ```yaml
-- uses: teresaliu90/AgentTrustOps@v0.2.0
+- uses: teresaliu90/AgentTrustOps@v0.3.0
   with:
     scenarios: scenarios/refund.json
     policy: policies/refund.json
 ```
 
-The composite action installs the exact referenced repository revision and exits non-zero when a
-scenario violates the release contract. Versioned GitHub Releases attach wheels, source archives,
-SHA-256 checksums, a CycloneDX SBOM, and GitHub artifact attestations. The release workflow also
-publishes an SBOM/provenance-attested image to GHCR. PyPI Trusted Publishing is prepared but is not
-claimed as live until the package page exists; see [publishing](docs/publishing.md).
+Versioned releases attach wheel/sdist artifacts, SHA-256 checksums, a CycloneDX SBOM, and GitHub
+artifact attestations. CI exercises Python 3.11–3.13, a real PostgreSQL service, a pinned real OPA
+server, OpenAI Agents/FastMCP contracts, package install, container smoke, dependency audit,
+CodeQL, the reusable action, and deliberately unsafe release behavior. GHCR images publish with
+SBOM/provenance; PyPI is not claimed live until its public package page exists.
 
-## Guarantees and non-guarantees
+## What is deliberately not claimed
 
-AgentTrustOps provides enforceable local/database contracts: fail-closed policy evaluation,
-request-fingerprint idempotency conflicts, atomic state/event transitions, bound approvals,
-single-owner execution claims, explicit unknown outcomes, and privacy-safe default views.
+- distributed exactly-once execution or rollback of irreversible effects;
+- cryptographic immutability of the mutable source database;
+- identity verification merely because a Python dataclass was constructed;
+- a hosted managed service, regional HA result, compliance certification, or independent audit;
+- production adoption inferred from stars, downloads, CI, maintainer demos, or synthetic load.
 
-It does **not** claim distributed exactly-once delivery, cryptographic immutability, identity
-verification by a Python dataclass, rollback of irreversible side effects, compliance
-certification, or real-world adoption that has not happened. Provider-native idempotency remains a
-required second boundary.
+Those limits are product requirements, not footnotes. See [non-goals](docs/non-goals.md), the
+[threat model](docs/threat-model.md), and the [operations runbook](docs/operations.md).
+
+## Adoption is measured, not decorated
+
+The current adopter registry remains honest. The [adoption ladder](docs/adoption-playbook.md)
+defines what raises the external-adoption score from 1 to 10, and the
+[unassisted design-partner challenge](docs/design-partner-feedback-kit.md) makes the first external
+proof reproducible. If you evaluate a real workflow, submit the
+[adopter report](https://github.com/teresaliu90/AgentTrustOps/issues/new?template=design-partner.yml)
+at the visibility level you control.
 
 ## Documentation
 
 - [Architecture and state machine](docs/architecture.md)
-- [HTTP API and end-to-end walkthrough](docs/api.md)
-- [Operations, PostgreSQL, metrics, backup, and incident runbook](docs/operations.md)
-- [Security model and privacy defaults](docs/threat-model.md)
-- [Production boundaries](docs/production-boundaries.md)
+- [HTTP API walkthrough](docs/api.md)
+- [Audit evidence and offline verification](docs/audit-evidence.md)
+- [Operations and incident runbook](docs/operations.md)
+- [Security model](docs/threat-model.md) and [production boundaries](docs/production-boundaries.md)
 - [Framework integrations](docs/integrations.md)
-- [Performance methodology and reproducible probe](docs/performance.md)
-- [Release artifacts, GHCR, and PyPI publishing](docs/publishing.md)
-- [Competitive comparison](docs/comparison.md)
-- [Evidence-based scorecard](docs/scorecard.md)
-- [Independent design-partner feedback kit](docs/design-partner-feedback-kit.md)
-- [Adopter evidence policy](ADOPTERS.md), [governance](GOVERNANCE.md), and [support](SUPPORT.md)
-- [Migration from v0.1](docs/migration-v0.2.md)
-- [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
+- [Competitive comparison](docs/comparison.md) and [evidence-based scorecard](docs/scorecard.md)
+- [Publishing](docs/publishing.md), [roadmap](ROADMAP.md), and [changelog](CHANGELOG.md)
+- [Adopters](ADOPTERS.md), [governance](GOVERNANCE.md), [support](SUPPORT.md), and [contributing](CONTRIBUTING.md)
 
-## Project status
-
-v0.2 is a tested beta-quality foundation, not a compliance-certified managed service. CI covers
-Python 3.11–3.13, SQLite, a real PostgreSQL service, the API and browser-control workflow,
-concurrency/crash contracts, package installation, dependency audit, adapter contracts, a reusable
-release action, and a deliberately unsafe release. Contributions, real design-partner reports, and
-adversarial scenarios are welcome under the [contribution guide](CONTRIBUTING.md).
-Questions and integration ideas are welcome in [GitHub Discussions](https://github.com/teresaliu90/AgentTrustOps/discussions).
-
-Apache-2.0 licensed.
+AgentTrustOps v0.3 is a beta-quality open-source control plane, not a compliance-certified managed
+service. Apache-2.0 licensed. Contributions, real design-partner reports, adversarial scenarios,
+and critical review are welcome.

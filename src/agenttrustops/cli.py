@@ -7,6 +7,13 @@ import json
 import os
 from pathlib import Path
 
+from .audit import (
+    export_audit_bundle,
+    generate_ed25519_keypair,
+    read_audit_bundle,
+    verify_audit_bundle,
+    write_audit_bundle,
+)
 from .ledger import SQLiteActionLedger
 from .observability import collect_operational_snapshot, render_prometheus
 from .refund_ops import (
@@ -87,6 +94,94 @@ def _recover(args: argparse.Namespace) -> int:
     return 0
 
 
+def _audit_keygen(args: argparse.Namespace) -> int:
+    report = generate_ed25519_keypair(args.private_key, args.public_key)
+    print(json.dumps(report, indent=2))
+    return 0
+
+
+def _open_operational_ledger(args: argparse.Namespace):
+    postgres_dsn = os.getenv(args.postgres_dsn_env)
+    if postgres_dsn:
+        from .postgres import PostgresActionLedger
+
+        return PostgresActionLedger(postgres_dsn)
+    if args.ledger is not None:
+        return SQLiteActionLedger(args.ledger)
+    raise SystemExit(
+        "command requires --ledger or the PostgreSQL DSN environment variable"
+    )
+
+
+def _audit_export(args: argparse.Namespace) -> int:
+    ledger = _open_operational_ledger(args)
+    try:
+        document = export_audit_bundle(
+            ledger,
+            tenant_id=args.tenant,
+            limit=args.limit,
+            signing_key_path=args.signing_key,
+        )
+        write_audit_bundle(args.output, document)
+    finally:
+        ledger.close()
+    print(
+        json.dumps(
+            {
+                "output": str(args.output),
+                "run_count": document["payload"]["run_count"],
+                "digest": document["proof"]["digest"],
+                "signed": document["proof"]["signature"] is not None,
+            },
+            indent=2,
+        )
+    )
+    return 0
+
+
+def _audit_verify(args: argparse.Namespace) -> int:
+    try:
+        report = verify_audit_bundle(
+            read_audit_bundle(args.bundle),
+            trusted_public_key_path=args.public_key,
+        )
+    except ValueError as error:
+        print(json.dumps({"valid": False, "error": str(error)}, indent=2))
+        return 2
+    print(json.dumps(report, indent=2))
+    return 0
+
+
+def _build_identity_verifier(args: argparse.Namespace):
+    from .auth import OIDCJWTVerifier, StaticTokenVerifier
+
+    oidc = {
+        "issuer": args.oidc_issuer or os.getenv("AGENTTRUSTOPS_OIDC_ISSUER"),
+        "audience": args.oidc_audience or os.getenv("AGENTTRUSTOPS_OIDC_AUDIENCE"),
+        "jwks_url": args.oidc_jwks_url or os.getenv("AGENTTRUSTOPS_OIDC_JWKS_URL"),
+    }
+    configured = [name for name, value in oidc.items() if value]
+    if args.identities is not None and configured:
+        raise SystemExit("choose exactly one auth mode: --identities or OIDC")
+    if args.identities is not None:
+        return StaticTokenVerifier.from_json(args.identities)
+    if configured and len(configured) != len(oidc):
+        missing = ", ".join(name for name, value in oidc.items() if not value)
+        raise SystemExit(f"incomplete OIDC configuration; missing: {missing}")
+    if configured:
+        return OIDCJWTVerifier(
+            issuer=str(oidc["issuer"]),
+            audience=str(oidc["audience"]),
+            jwks_url=str(oidc["jwks_url"]),
+            tenant_claim=args.oidc_tenant_claim,
+            roles_claim=args.oidc_roles_claim,
+            allow_insecure_http=args.oidc_allow_insecure_http,
+        )
+    raise SystemExit(
+        "authentication is required: use --identities for a local demo or configure OIDC"
+    )
+
+
 def _serve(args: argparse.Namespace) -> int:
     try:
         import uvicorn
@@ -96,15 +191,15 @@ def _serve(args: argparse.Namespace) -> int:
         ) from error
 
     from .api import create_app
-    from .auth import StaticTokenVerifier
     from .models import ActionContext
     from .registry import ActionRegistry
 
+    identity_verifier = _build_identity_verifier(args)
     policy = (
         load_json(args.policy)
         if args.policy is not None
         else {
-            "release": "refund-control-plane-v0.2",
+            "release": "refund-control-plane-v0.3",
             "selection_mode": "as_of_order",
             "approval_enabled": True,
             "require_evidence": True,
@@ -112,18 +207,7 @@ def _serve(args: argparse.Namespace) -> int:
             "allowed_roles": ["refund_agent", "refund_admin"],
         }
     )
-    postgres_dsn = os.getenv(args.postgres_dsn_env)
-    ledger: SQLiteActionLedger
-    if postgres_dsn:
-        from .postgres import PostgresActionLedger
-
-        ledger = PostgresActionLedger(postgres_dsn)
-    elif args.ledger is not None:
-        ledger = SQLiteActionLedger(args.ledger)
-    else:
-        raise SystemExit(
-            "serve requires --ledger or the PostgreSQL DSN environment variable"
-        )
+    ledger = _open_operational_ledger(args)
     action, _ = build_refund_action_on_ledger(
         ledger=ledger,
         refund_path=args.refunds,
@@ -160,15 +244,21 @@ def _serve(args: argparse.Namespace) -> int:
 
     app = create_app(
         ActionRegistry(action.ledger, [action]),
-        StaticTokenVerifier.from_json(args.identities),
+        identity_verifier,
         context_resolver=resolve_refund_evidence,
     )
-    uvicorn.run(app, host=args.host, port=args.port, access_log=False)
+    try:
+        uvicorn.run(app, host=args.host, port=args.port, access_log=False)
+    finally:
+        ledger.close()
     return 0
 
 
 def _demo(args: argparse.Namespace) -> int:
     report = run_refund_demo(args.output_dir)
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+        return 0
     print("RefundOps approval walkthrough")
     print(f"Run ID: {report['run_id']}")
     print(f"States: {' -> '.join(report['states'])}")
@@ -204,7 +294,35 @@ def build_parser() -> argparse.ArgumentParser:
         "demo", help="persist an approval, execution, and replay walkthrough"
     )
     demo.add_argument("--output-dir", type=Path, default=Path("demo-runs"))
+    demo.add_argument("--json", action="store_true")
     demo.set_defaults(handler=_demo)
+
+    keygen = subparsers.add_parser(
+        "audit-keygen", help="create a non-overwriting Ed25519 audit keypair"
+    )
+    keygen.add_argument("--private-key", type=Path, required=True)
+    keygen.add_argument("--public-key", type=Path, required=True)
+    keygen.set_defaults(handler=_audit_keygen)
+
+    audit_export = subparsers.add_parser(
+        "audit-export", help="export redacted, optionally signed audit evidence"
+    )
+    audit_export.add_argument("--ledger", type=Path)
+    audit_export.add_argument(
+        "--postgres-dsn-env", default="AGENTTRUSTOPS_POSTGRES_DSN"
+    )
+    audit_export.add_argument("--tenant")
+    audit_export.add_argument("--limit", type=int, default=1000)
+    audit_export.add_argument("--signing-key", type=Path)
+    audit_export.add_argument("--output", type=Path, required=True)
+    audit_export.set_defaults(handler=_audit_export)
+
+    audit_verify = subparsers.add_parser(
+        "audit-verify", help="verify an audit bundle without ledger access"
+    )
+    audit_verify.add_argument("bundle", type=Path)
+    audit_verify.add_argument("--public-key", type=Path)
+    audit_verify.set_defaults(handler=_audit_verify)
 
     doctor = subparsers.add_parser(
         "doctor", help="verify the schema and tamper-evident event chains"
@@ -239,7 +357,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="environment variable containing a PostgreSQL DSN",
     )
     serve.add_argument("--refunds", type=Path, required=True)
-    serve.add_argument("--identities", type=Path, required=True)
+    serve.add_argument(
+        "--identities",
+        type=Path,
+        help="permission-restricted static identities for local demos only",
+    )
+    serve.add_argument("--oidc-issuer")
+    serve.add_argument("--oidc-audience")
+    serve.add_argument("--oidc-jwks-url")
+    serve.add_argument("--oidc-tenant-claim", default="tenant_id")
+    serve.add_argument("--oidc-roles-claim", default="roles")
+    serve.add_argument("--oidc-allow-insecure-http", action="store_true")
     serve.add_argument("--policy", type=Path)
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8787)

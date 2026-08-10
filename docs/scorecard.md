@@ -1,47 +1,56 @@
 # Unified GitHub competitiveness scorecard
 
-Snapshot: 2026-08-10. This self-audit deliberately includes engineering, GitHub release/community
-readiness, and real external adoption. It is not an independent certification and does not convert
-stars, tests, or maintainer usage into production customers.
+Snapshot: 2026-08-10. This maintainer self-audit includes engineering, product clarity, release and
+community readiness, and independently verifiable external adoption. It is not a certification.
+Every score has an explicit limit; stars, tests, downloads, and maintainer usage never become
+production-adoption points.
 
-| Dimension | Weight | Score | Verifiable evidence and remaining limit |
+| Dimension | Weight | Score | Verifiable evidence and current limit |
 |---|---:|---:|---|
-| User pain and product completeness | 12% | 9.2 | invoke → policy → approval → execute → unknown → reconcile → audit; operator console and incident runbook |
-| Focused differentiation | 10% | 8.8 | fingerprint conflicts, bound approvals, leases, no blind retry, privacy-safe event chain; deliberately narrower than orchestration suites |
-| Core correctness and reliability | 18% | 9.3 | atomic state/events, chain anchors, ownership/heartbeats, migrations, threaded/async/real-PostgreSQL contracts; no distributed exactly-once claim |
-| Security and privacy | 12% | 8.7 | OIDC/JWKS, tenant/role separation, CSP console, CodeQL, dependency review, OpenSSF Scorecard, secret scanning/push protection, fail-closed OPA; no independent audit yet |
-| Deployment and operator UX | 10% | 8.7 | SDK, CLI, FastAPI, SQLite/PostgreSQL, Docker/Compose, metrics, browser operations console; no hosted managed service or regional HA reference |
-| Ecosystem integrations | 10% | 8.7 | tested LangGraph, OpenAI Agents SDK 0.19, FastMCP 1.29, OPA Data API 1.17, and generic workflow-engine contract; connector catalog is still small |
-| Testing and performance evidence | 10% | 8.8 | 64 tests, real PostgreSQL/OPA CI, package/action/container smoke, unsafe release gate, reproducible 1,000+1,000 SQLite probe; no independent load lab or SLO |
-| Release and supply chain | 8% | 9.0 | [v0.2.0 Release](https://github.com/teresaliu90/AgentTrustOps/releases/tag/v0.2.0) has wheel/sdist, checksums, CycloneDX SBOM and attestations; public GHCR image has SBOM/provenance; manual PyPI Trusted Publishing path is ready but not claimed live |
-| OSS community process | 5% | 8.0 | issue forms, Discussions, adopter consent policy, governance/support/security docs, citation, Code of Conduct, contributor path; single-maintainer bus factor remains |
-| Verified external adoption | 5% | 1.0 | snapshot has 1 star, 0 forks, and no named or privately verified production adopter; interest is not counted as adoption, and the adopter registry is intentionally empty |
+| User pain and product completeness | 12% | 9.3 | intent → policy → approval → execute → unknown → reconcile → signed redacted evidence; no managed service |
+| Focused differentiation | 10% | 9.3 | side-effect commit-point category, changed-request conflicts, bound authority, crash ambiguity, portable proof; narrower than full orchestration/security suites |
+| Core correctness and reliability | 18% | 9.4 | atomic state/events, chain anchors, ownership/heartbeats, migrations, threaded/async/real-PostgreSQL contracts; no distributed exactly-once claim |
+| Security and privacy | 12% | 9.1 | OIDC/JWKS, tenant/role separation, fail-closed OPA, CodeQL, dependency review, secret scanning, redacted signed export; no independent audit/KMS adapter |
+| Deployment and operator UX | 10% | 9.0 | 60-second wheel demo, SDK/CLI/API/UI, SQLite/PostgreSQL, Docker, OIDC startup, metrics/recovery; no regional HA evidence |
+| Ecosystem integrations | 10% | 8.8 | tested LangGraph, OpenAI Agents, FastMCP, OPA and reusable GitHub Action; small connector catalog |
+| Testing and performance evidence | 10% | 9.1 | 74 tests, real PostgreSQL/OPA CI, package/container/action smoke, tamper/signature negatives, reproducible benchmark; no independent load lab/SLO |
+| Release and supply chain | 8% | 9.2 | v0.3 wheel/sdist, checksums, CycloneDX SBOM, attestations and public GHCR provenance path; PyPI is not claimed live |
+| OSS community process | 5% | 8.4 | issue forms, Discussions, adoption ladder/funnel, governance/support/security, citation, Code of Conduct; single-maintainer bus factor |
+| Verified external adoption | 5% | 1.0 | 1 star, 0 forks, and no named or privately verified production adopter at snapshot; repository activity is not adoption |
 
-Verified weighted result: **8.49/10, reported as 8.5/10**. Main CI, CodeQL, OpenSSF, tag CI, and the
-[release workflow](https://github.com/teresaliu90/AgentTrustOps/actions/runs/31352872338) were green at
-the snapshot. The GHCR `v0.2.0` manifest was anonymously retrievable with digest
-`sha256:b868468c204bf72bb3975f0a59bb470fc01355b768e56078e752f49b05ff752a`.
+Weighted calculation:
 
-## Why the adoption score stays low
+```text
+0.12×9.3 + 0.10×9.3 + 0.18×9.4 + 0.12×9.1 + 0.10×9.0
++ 0.10×8.8 + 0.10×9.1 + 0.08×9.2 + 0.05×8.4 + 0.05×1.0
+= 8.726 → 8.7/10
+```
 
-Actual adoption is included, scored separately, and cannot be fixed by repository code. The project
-will raise it only with consented evidence in `ADOPTERS.md`: a named deployment, a privately verified
-anonymous deployment, or a design-partner pilot with version/backend/integration and volume band.
-Maintainer demos, CI runs, downloads, clones, and synthetic workloads do not qualify.
+The result is **8.7/10 with real adoption included at 1.0/10**, not a score obtained by excluding
+the weakest category. It means the repository is technically competitive and unusually complete
+for an early narrow control-plane project. It does not mean ecosystem parity with OPA, Temporal,
+LangGraph, or established guardrail projects.
 
-## Competitive interpretation
+## Why adoption cannot be “implemented” to 10
 
-An 8.5 here means the repository is unusually complete and adoptable for a new, narrow control-plane
-project—not that it has the ecosystem power of OPA, Temporal, LangGraph, or established guardrail and
-observability vendors. AgentTrustOps has a strong technical wedge where those categories overlap:
-one risky side effect governed consistently across identity, policy, human approval, retry, crash,
-reconciliation, and redacted audit. The adapters make it complementary to incumbent ecosystems.
+A maintainer can reduce adoption friction but cannot truthfully create independent organizations,
+production continuity, external maintainers, or case studies. The
+[verifiable adoption ladder](adoption-playbook.md) requires 20 production organizations, 10 million
+cumulative governed runs, externally maintained integrations, recurring community releases, and
+support evidence for 10/10. Until that evidence exists, this row stays low.
 
-## What blocks a defensible 9.0
+What v0.3 does change is the conversion surface: no-key 60-second proof, a 20-minute independent
+challenge, two-hour integration boundary, two-week pilot checklist, consented evidence packet,
+signed portable audit proof, and an explicit report form. These are legitimate leading indicators,
+not retroactive adoption claims.
 
-- at least two independently verifiable design-partner or production deployments;
-- an independent security review and published remediation record;
-- measured PostgreSQL contention, recovery, and tail-latency results on disclosed infrastructure;
-- a regional HA reference deployment and tested restore/failover procedure;
-- more external contributors and a second trusted maintainer;
-- provider-certified side-effect connectors or a broader maintained integration catalog.
+## What blocks 9.0 overall
+
+- at least three verified pilots and one 30-day production deployment;
+- independent security review and published remediation record;
+- PostgreSQL contention/recovery/tail-latency report on disclosed infrastructure;
+- tested backup/restore and regional HA evidence with RPO/RTO;
+- provider contract kits and one externally maintained integration;
+- second trusted maintainer and recurring external contributions.
+
+Crossing 9.0 should come from independent proof, not another maintainer-authored feature batch.

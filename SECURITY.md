@@ -12,7 +12,8 @@ use.
 
 | Version | Security fixes |
 |---|---|
-| 0.2.x | Yes |
+| 0.3.x | Yes |
+| 0.2.x | Security fixes only |
 | 0.1.x | Critical fixes only until 2026-11-08 |
 
 Maintainers will acknowledge a complete private report when repository notifications permit and

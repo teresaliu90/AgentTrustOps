@@ -14,6 +14,18 @@ agenttrust doctor --ledger actions.db
 agenttrust metrics --ledger actions.db --verify-integrity
 ```
 
+Production authentication can be configured without a static identity file:
+
+```bash
+export AGENTTRUSTOPS_OIDC_ISSUER=https://identity.example
+export AGENTTRUSTOPS_OIDC_AUDIENCE=agenttrustops-api
+export AGENTTRUSTOPS_OIDC_JWKS_URL=https://identity.example/.well-known/jwks.json
+agenttrust serve --refunds refunds.db
+```
+
+All three OIDC values are required. Static identities and OIDC are mutually exclusive. Insecure
+HTTP discovery is rejected unless the explicit local-testing flag is supplied.
+
 ## Alerts
 
 Recommended initial alerts:
@@ -45,6 +57,21 @@ environment and run an integrity scan after restoration. Define separate retenti
 run metadata, sensitive arguments/results, and independently exported audit events. The reference
 schema stores arguments and results; production adapters should tokenize, encrypt, or omit fields
 that are unnecessary for decisions.
+
+For each evidence retention interval, export and immediately verify a tenant-scoped signed bundle:
+
+```bash
+agenttrust audit-export \
+  --ledger actions.db \
+  --tenant acme \
+  --signing-key /run/secrets/audit-private.pem \
+  --output acme-evidence.json
+agenttrust audit-verify acme-evidence.json --public-key audit-public.pem
+```
+
+Move the verified artifact to independently administered object-lock/WORM storage. The filesystem
+signing key is a reference path; production key custody should use a KMS/secret boundary. See
+[portable audit evidence](audit-evidence.md).
 
 ## Scaling and availability
 

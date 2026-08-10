@@ -1,5 +1,12 @@
 """Public AgentTrustOps SDK surface."""
 
+from .audit import (
+    export_audit_bundle,
+    generate_ed25519_keypair,
+    read_audit_bundle,
+    verify_audit_bundle,
+    write_audit_bundle,
+)
 from .auth import (
     AuthenticationError,
     IdentityVerifier,
@@ -63,9 +70,14 @@ __all__ = [
     "as_mcp_tool_handler",
     "as_openai_agents_tool",
     "collect_operational_snapshot",
+    "export_audit_bundle",
+    "generate_ed25519_keypair",
+    "read_audit_bundle",
     "register_fastmcp_action",
     "render_prometheus",
     "trusted_action",
+    "verify_audit_bundle",
+    "write_audit_bundle",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

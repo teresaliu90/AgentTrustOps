@@ -18,7 +18,7 @@ from agenttrustops import (
     StaticTokenVerifier,
     VerifiedPrincipal,
 )
-from agenttrustops.cli import main
+from agenttrustops.cli import _build_identity_verifier, build_parser, main
 from agenttrustops.refund_ops import build_refund_action
 
 
@@ -138,6 +138,107 @@ class AuthenticationTests(unittest.TestCase):
 
 
 class OperationalCliTests(unittest.TestCase):
+    def test_demo_and_signed_audit_cli_form_an_offline_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                self.assertEqual(
+                    main(["demo", "--output-dir", str(root), "--json"]),
+                    0,
+                )
+            demo = json.loads(stdout.getvalue())
+            private_key = root / "private.pem"
+            public_key = root / "public.pem"
+            bundle = root / "evidence.json"
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(
+                    main(
+                        [
+                            "audit-keygen",
+                            "--private-key",
+                            str(private_key),
+                            "--public-key",
+                            str(public_key),
+                        ]
+                    ),
+                    0,
+                )
+                self.assertEqual(
+                    main(
+                        [
+                            "audit-export",
+                            "--ledger",
+                            demo["ledger"],
+                            "--signing-key",
+                            str(private_key),
+                            "--output",
+                            str(bundle),
+                        ]
+                    ),
+                    0,
+                )
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                exit_code = main(
+                    ["audit-verify", str(bundle), "--public-key", str(public_key)]
+                )
+            report = json.loads(stdout.getvalue())
+
+            self.assertEqual(exit_code, 0)
+            self.assertTrue(report["valid"])
+            self.assertEqual(report["trust_mode"], "pinned-key")
+
+    def test_serve_auth_mode_can_be_configured_with_production_oidc(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "serve",
+                "--ledger",
+                "ledger.db",
+                "--refunds",
+                "refunds.db",
+                "--oidc-issuer",
+                "https://identity.example",
+                "--oidc-audience",
+                "agenttrustops-api",
+                "--oidc-jwks-url",
+                "https://identity.example/.well-known/jwks.json",
+            ]
+        )
+        verifier = _build_identity_verifier(args)
+
+        self.assertIsInstance(verifier, OIDCJWTVerifier)
+        self.assertEqual(verifier.audience, "agenttrustops-api")
+
+    def test_serve_rejects_missing_mixed_and_partial_auth_modes(self) -> None:
+        base = ["serve", "--ledger", "ledger.db", "--refunds", "refunds.db"]
+        with self.assertRaisesRegex(SystemExit, "authentication is required"):
+            _build_identity_verifier(build_parser().parse_args(base))
+        with self.assertRaisesRegex(SystemExit, "incomplete OIDC"):
+            _build_identity_verifier(
+                build_parser().parse_args(
+                    [*base, "--oidc-issuer", "https://identity.example"]
+                )
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            identities = Path(directory) / "identities.json"
+            identities.write_text('{"identities": []}', encoding="utf-8")
+            os.chmod(identities, 0o600)
+            with self.assertRaisesRegex(SystemExit, "exactly one auth mode"):
+                _build_identity_verifier(
+                    build_parser().parse_args(
+                        [
+                            *base,
+                            "--identities",
+                            str(identities),
+                            "--oidc-issuer",
+                            "https://identity.example",
+                        ]
+                    )
+                )
+
     def test_doctor_and_metrics_inspect_a_real_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             ledger_path = Path(directory) / "ledger.db"

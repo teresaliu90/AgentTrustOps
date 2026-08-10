@@ -100,7 +100,7 @@ jobs:
       - run: python -m build
       - run: python -m venv /tmp/wheel-smoke
       - run: /tmp/wheel-smoke/bin/pip install dist/*.whl
-      - run: /tmp/wheel-smoke/bin/python -c "import agenttrustops; assert agenttrustops.__version__ == '0.2.0'"
+      - run: /tmp/wheel-smoke/bin/python -c "import agenttrustops; assert agenttrustops.__version__ == '0.3.0'"
 
   dependency-audit:
     runs-on: ubuntu-latest

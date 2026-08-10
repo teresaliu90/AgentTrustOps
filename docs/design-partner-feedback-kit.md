@@ -19,11 +19,11 @@ than a large number of passive stars.
 
 ## Unassisted ten-minute task
 
-1. Start with `docker compose up --build` using only the README.
-2. Invoke `O-HIGH` twice with the same key and confirm the public answers match.
-3. Change the amount while retaining the key and identify the conflict.
-4. Approve and resume the original run.
-5. Find the audit endpoint and explain what `chain_verified` and `immutable` do—and do not—mean.
+1. Install the release wheel and complete `agenttrust demo` using only the README.
+2. Replay the printed run and explain same-request replay versus changed-request conflict.
+3. Create an audit keypair, export the printed ledger, and verify it with the pinned public key.
+4. Tamper with a copy of the JSON and confirm verification fails.
+5. Explain what source `chain_verified`, the export signature, and WORM storage each do—and do not—prove.
 
 Do not coach the reviewer during the first ten minutes. Installation failures, unclear terms, and
 missing navigation are primary findings.
@@ -58,7 +58,8 @@ explicit permission and verifiable participation.
 
 ## Initial success threshold
 
-- three independent environments complete first invoke within ten minutes;
+- three independent environments complete the persisted demo within five minutes;
 - all three correctly explain same-key replay versus changed-request conflict;
+- all three independently verify a signed export and reject a modified copy;
 - at least two identify a plausible integration and no critical trust-boundary misunderstanding;
 - every blocker is either fixed, documented, or deliberately accepted with rationale.

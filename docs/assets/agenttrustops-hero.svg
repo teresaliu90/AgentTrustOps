@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="440" viewBox="0 0 1200 440" role="img" aria-labelledby="title desc">
+  <title id="title">AgentTrustOps side-effect control plane</title>
+  <desc id="desc">An agent intent passes through policy, human approval, a single execution claim, and signed audit evidence.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111f"/>
+      <stop offset="1" stop-color="#10243b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#40e0d0"/>
+      <stop offset="1" stop-color="#7aa2ff"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity=".28"/>
+    </filter>
+  </defs>
+  <rect width="1200" height="440" rx="26" fill="url(#bg)"/>
+  <circle cx="1110" cy="60" r="160" fill="#315efb" opacity=".09"/>
+  <circle cx="80" cy="410" r="150" fill="#40e0d0" opacity=".07"/>
+  <text x="64" y="82" fill="#f4f8ff" font-family="ui-sans-serif,system-ui,sans-serif" font-size="36" font-weight="700">Control the commit point for AI-agent side effects.</text>
+  <text x="64" y="118" fill="#9db0c8" font-family="ui-sans-serif,system-ui,sans-serif" font-size="17">One enforceable transaction from model intent to business effect — including the ugly crash window.</text>
+  <path d="M220 247H980" stroke="url(#accent)" stroke-width="4" opacity=".78"/>
+  <g filter="url(#shadow)" font-family="ui-sans-serif,system-ui,sans-serif">
+    <g transform="translate(58 180)">
+      <rect width="220" height="135" rx="18" fill="#142c47" stroke="#335374"/>
+      <text x="24" y="39" fill="#8da7c5" font-size="13" font-weight="700" letter-spacing="1.4">INTENT</text>
+      <text x="24" y="72" fill="#f4f8ff" font-size="22" font-weight="700">Agent proposes</text>
+      <text x="24" y="101" fill="#9db0c8" font-size="14">arguments + stable retry key</text>
+    </g>
+    <g transform="translate(365 180)">
+      <rect width="220" height="135" rx="18" fill="#142c47" stroke="#40e0d0"/>
+      <text x="24" y="39" fill="#70e7da" font-size="13" font-weight="700" letter-spacing="1.4">AUTHORITY</text>
+      <text x="24" y="72" fill="#f4f8ff" font-size="22" font-weight="700">Policy + approval</text>
+      <text x="24" y="101" fill="#9db0c8" font-size="14">identity, tenant, evidence, expiry</text>
+    </g>
+    <g transform="translate(672 180)">
+      <rect width="220" height="135" rx="18" fill="#142c47" stroke="#7aa2ff"/>
+      <text x="24" y="39" fill="#9cb8ff" font-size="13" font-weight="700" letter-spacing="1.4">COMMIT POINT</text>
+      <text x="24" y="72" fill="#f4f8ff" font-size="22" font-weight="700">Claim once</text>
+      <text x="24" y="101" fill="#9db0c8" font-size="14">execute · unknown · reconcile</text>
+    </g>
+    <g transform="translate(979 180)">
+      <rect width="163" height="135" rx="18" fill="#142c47" stroke="#9c8cff"/>
+      <text x="20" y="39" fill="#b6aaff" font-size="13" font-weight="700" letter-spacing="1.4">EVIDENCE</text>
+      <text x="20" y="72" fill="#f4f8ff" font-size="22" font-weight="700">Prove it</text>
+      <text x="20" y="101" fill="#9db0c8" font-size="14">redact · sign · verify</text>
+    </g>
+  </g>
+  <g font-family="ui-monospace,SFMono-Regular,monospace" font-size="13">
+    <rect x="300" y="346" width="600" height="46" rx="12" fill="#07111f" stroke="#29415e"/>
+    <circle cx="325" cy="369" r="6" fill="#40e0d0"/>
+    <text x="345" y="374" fill="#d8e6f7">same request → same run</text>
+    <text x="555" y="374" fill="#617a98">|</text>
+    <text x="580" y="374" fill="#d8e6f7">changed request → hard conflict</text>
+  </g>
+</svg>
