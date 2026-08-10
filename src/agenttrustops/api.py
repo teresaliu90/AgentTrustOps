@@ -6,6 +6,7 @@ accepted from an invocation request body.
 """
 
 from collections.abc import Callable
+from importlib.resources import files
 from typing import Annotated, Any, Literal, Protocol
 from uuid import uuid4
 
@@ -19,7 +20,7 @@ from fastapi import (
     Response,
     status,
 )
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.concurrency import run_in_threadpool
 
@@ -116,6 +117,14 @@ def create_app(
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         response.headers["Cache-Control"] = "no-store"
+        if request.url.path == "/ui" or request.url.path.startswith("/ui/"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; style-src 'self'; script-src 'self'; "
+                "connect-src 'self'; img-src 'self' data:; base-uri 'none'; "
+                "frame-ancestors 'none'; form-action 'none'"
+            )
+            response.headers["X-Content-Type-Options"] = "nosniff"
+            response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     async def principal(
@@ -186,6 +195,23 @@ def create_app(
     @app.get("/readyz", tags=["operations"])
     async def readiness() -> dict[str, Any]:
         return {"status": "ready", "ledger": registry.ledger.schema_info()}
+
+    @app.get("/ui", tags=["console"], response_class=HTMLResponse)
+    async def control_plane_ui() -> HTMLResponse:
+        """Serve the credential-local operations console shell."""
+
+        return HTMLResponse(_static_asset("control-plane.html"))
+
+    @app.get("/ui/control-plane.css", tags=["console"])
+    async def control_plane_css() -> Response:
+        return Response(_static_asset("control-plane.css"), media_type="text/css")
+
+    @app.get("/ui/control-plane.js", tags=["console"])
+    async def control_plane_js() -> Response:
+        return Response(
+            _static_asset("control-plane.js"),
+            media_type="text/javascript",
+        )
 
     @app.get("/v1/actions", tags=["actions"])
     async def actions(
@@ -394,3 +420,7 @@ def _public_result(result: ActionResult) -> dict[str, Any]:
     """Exclude idempotency keys, credentials, request bodies, and evidence by default."""
 
     return result.to_public_dict()
+
+
+def _static_asset(name: str) -> str:
+    return files("agenttrustops").joinpath("static", name).read_text(encoding="utf-8")

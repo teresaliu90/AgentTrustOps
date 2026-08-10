@@ -1,0 +1,71 @@
+name: Design partner / adopter report
+description: Share a real pilot, request an integration, or consent to an adopter entry
+title: "[Adoption]: "
+labels: ["adoption"]
+body:
+  - type: dropdown
+    id: relationship
+    attributes:
+      label: Relationship
+      options:
+        - Evaluating
+        - Design-partner pilot
+        - Production adopter
+        - Integration request
+    validations:
+      required: true
+  - type: dropdown
+    id: visibility
+    attributes:
+      label: Permitted visibility
+      options:
+        - Public named entry
+        - Anonymous aggregate only
+        - Private follow-up; do not list
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.2.0
+    validations:
+      required: true
+  - type: dropdown
+    id: backend
+    attributes:
+      label: Ledger backend
+      options:
+        - SQLite
+        - PostgreSQL
+        - Not deployed yet
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Governed workflow and integration
+      description: Describe the side effect, framework, and pain point using non-sensitive information.
+    validations:
+      required: true
+  - type: dropdown
+    id: volume
+    attributes:
+      label: Approximate monthly governed runs
+      options:
+        - Not running yet
+        - Under 1,000
+        - 1,000–100,000
+        - More than 100,000
+        - Prefer not to disclose
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Data and claims
+      options:
+        - label: This report contains no credentials, personal data, customer records, or private policy source.
+          required: true
+        - label: I understand an adopter entry is added only at the visibility level selected above.
+          required: true

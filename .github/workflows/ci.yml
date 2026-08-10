@@ -19,11 +19,18 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: pip install -e '.[api,postgres,oidc,dev]'
+      - run: pip install -e '.[api,postgres,oidc,openai,mcp,dev]'
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src/agenttrustops
       - run: python -m unittest discover -s tests -v
+      - name: SQLite benchmark integrity smoke test
+        run: python benchmarks/benchmark_sqlite.py --iterations 25 --output benchmark.json
+      - uses: actions/upload-artifact@v7
+        if: matrix.python-version == '3.13'
+        with:
+          name: sqlite-benchmark-smoke
+          path: benchmark.json
       - run: agenttrust eval examples/refund_ops/scenarios.json --policy examples/refund_ops/policy-safe.json
       - name: Prove unsafe release is blocked
         run: |
@@ -59,6 +66,28 @@ jobs:
       - run: pip install -e '.[postgres,dev]'
       - run: python -m unittest tests.test_postgres_contract -v
 
+  opa-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Start a pinned OPA server with the example policy
+        run: >-
+          docker run --detach --rm --name agenttrustops-opa
+          --publish 8181:8181
+          --volume "${{ github.workspace }}/examples/opa:/policies:ro"
+          openpolicyagent/opa:1.17.0-static
+          run --server --addr=0.0.0.0:8181 /policies/agenttrustops.rego
+      - name: Wait for OPA readiness
+        run: curl --fail --retry 10 --retry-delay 1 --retry-all-errors http://127.0.0.1:8181/health
+      - run: python -m pip install -e .
+      - name: Exercise allow, approval, and deny over the real OPA Data API
+        env:
+          AGENTTRUSTOPS_TEST_OPA_URL: http://127.0.0.1:8181
+        run: python -m unittest tests.test_opa_live -v
+
   package:
     runs-on: ubuntu-latest
     steps:
@@ -90,3 +119,13 @@ jobs:
       - uses: actions/checkout@v7
       - run: docker build --tag agenttrustops:ci .
       - run: docker run --rm agenttrustops:ci --help
+
+  reusable-release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Run AgentTrustOps as a local composite action
+        uses: ./
+        with:
+          scenarios: examples/refund_ops/scenarios.json
+          policy: examples/refund_ops/policy-safe.json

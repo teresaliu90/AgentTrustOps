@@ -4,6 +4,8 @@
 [![CodeQL](https://github.com/teresaliu90/AgentTrustOps/actions/workflows/codeql.yml/badge.svg)](https://github.com/teresaliu90/AgentTrustOps/actions/workflows/codeql.yml)
 [![Python 3.11–3.13](https://img.shields.io/badge/python-3.11%E2%80%933.13-blue)](https://www.python.org/)
 [![Apache 2.0](https://img.shields.io/badge/license-Apache--2.0-green)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/teresaliu90/AgentTrustOps?display_name=tag)](https://github.com/teresaliu90/AgentTrustOps/releases)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/teresaliu90/AgentTrustOps/badge)](https://scorecard.dev/viewer/?uri=github.com/teresaliu90/AgentTrustOps)
 
 **The side-effect control plane for AI agents.**
 
@@ -40,6 +42,14 @@ AgentTrustOps ── policy ── deny
 
 ## Five-minute runnable proof
 
+Install the attested release wheel directly from GitHub:
+
+```bash
+pip install "agenttrustops[api] @ https://github.com/teresaliu90/AgentTrustOps/releases/download/v0.2.0/agenttrustops-0.2.0-py3-none-any.whl"
+```
+
+For development from the repository, use the editable path below.
+
 ### Local SDK and release gate
 
 ```bash
@@ -64,6 +74,10 @@ agenttrust eval examples/refund_ops/scenarios.json \
 ```bash
 docker compose up --build
 ```
+
+Open `http://localhost:8787/ui` for the built-in approval, resume, and reconciliation console. The
+browser keeps the bearer credential in memory only; refresh or **Clear** removes it. Every operation
+still passes through the API's tenant and role checks.
 
 The included identities and database password are conspicuous local-demo values. With the stack
 running, submit a high-value synthetic refund:
@@ -162,15 +176,16 @@ abandoned workers to this safe state.
 | `SQLiteActionLedger` | SDK evaluation, tests, single-instance services | WAL + transactional write serialization |
 | `PostgresActionLedger` | Multi-process control-plane deployments | row-level claims and per-run event-chain locks |
 
-Install optional components with `agenttrustops[api]`, `agenttrustops[postgres]`, and
-`agenttrustops[oidc]`. The FastAPI control plane includes authenticated invocation, approval inbox,
-rejection, resume, reconciliation,
+Install optional components with `agenttrustops[api]`, `agenttrustops[postgres]`,
+`agenttrustops[oidc]`, `agenttrustops[openai]`, and `agenttrustops[mcp]`. The FastAPI control plane includes authenticated
+invocation, browser approval inbox, rejection, resume, reconciliation,
 tenant-scoped audit, recovery, health/readiness, and Prometheus metrics. Run `agenttrust doctor` to
 verify schema access and event chains.
 
 ## Framework integration
 
-The dependency-free LangGraph adapter returns a state-in/partial-state-out node:
+Adapters are included for LangGraph, OpenAI Agents SDK, MCP hosts, and OPA. The dependency-free
+LangGraph adapter returns a state-in/partial-state-out node:
 
 ```python
 from agenttrustops import as_langgraph_node
@@ -183,10 +198,25 @@ refund_node = as_langgraph_node(
 )
 ```
 
-Branch on `state["agenttrustops"]["status"]` for `pending_approval` or `unknown`. AgentTrustOps is
-designed to compose with LangGraph, Temporal, OPA, Promptfoo, AgentOps, and other orchestration,
-policy, evaluation, or observability tools—not replace them. See [integrations](docs/integrations.md)
-and the [honest comparison](docs/comparison.md).
+Branch on `state["agenttrustops"]["status"]` for `pending_approval` or `unknown`. All adapters keep
+verified identity and retry authority outside model-visible arguments. AgentTrustOps composes with
+orchestration, policy, evaluation, and observability systems rather than replacing them. See
+[integrations](docs/integrations.md) and the [honest comparison](docs/comparison.md).
+
+## Use it as a GitHub release gate
+
+```yaml
+- uses: teresaliu90/AgentTrustOps@v0.2.0
+  with:
+    scenarios: scenarios/refund.json
+    policy: policies/refund.json
+```
+
+The composite action installs the exact referenced repository revision and exits non-zero when a
+scenario violates the release contract. Versioned GitHub Releases attach wheels, source archives,
+SHA-256 checksums, a CycloneDX SBOM, and GitHub artifact attestations. The release workflow also
+publishes an SBOM/provenance-attested image to GHCR. PyPI Trusted Publishing is prepared but is not
+claimed as live until the package page exists; see [publishing](docs/publishing.md).
 
 ## Guarantees and non-guarantees
 
@@ -207,17 +237,21 @@ required second boundary.
 - [Security model and privacy defaults](docs/threat-model.md)
 - [Production boundaries](docs/production-boundaries.md)
 - [Framework integrations](docs/integrations.md)
+- [Performance methodology and reproducible probe](docs/performance.md)
+- [Release artifacts, GHCR, and PyPI publishing](docs/publishing.md)
 - [Competitive comparison](docs/comparison.md)
-- [Evidence-based 8.6/10 scorecard](docs/scorecard.md)
+- [Evidence-based scorecard](docs/scorecard.md)
 - [Independent design-partner feedback kit](docs/design-partner-feedback-kit.md)
+- [Adopter evidence policy](ADOPTERS.md), [governance](GOVERNANCE.md), and [support](SUPPORT.md)
 - [Migration from v0.1](docs/migration-v0.2.md)
 - [Roadmap](ROADMAP.md) and [changelog](CHANGELOG.md)
 
 ## Project status
 
 v0.2 is a tested beta-quality foundation, not a compliance-certified managed service. CI covers
-Python 3.11–3.13, SQLite, a real PostgreSQL service, the API workflow, concurrency/crash contracts,
-package installation, dependency audit, and a deliberately unsafe release. Contributions and
+Python 3.11–3.13, SQLite, a real PostgreSQL service, the API and browser-control workflow,
+concurrency/crash contracts, package installation, dependency audit, adapter contracts, a reusable
+release action, and a deliberately unsafe release. Contributions, real design-partner reports, and
 adversarial scenarios are welcome under the [contribution guide](CONTRIBUTING.md).
 
 Apache-2.0 licensed.

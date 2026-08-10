@@ -1,0 +1,20 @@
+name: agent-policy-release-gate
+
+on:
+  pull_request:
+    paths:
+      - "policies/**"
+      - "scenarios/**"
+
+permissions:
+  contents: read
+
+jobs:
+  governed-action-scenarios:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: teresaliu90/AgentTrustOps@v0.2.0
+        with:
+          scenarios: scenarios/refund.json
+          policy: policies/refund.json

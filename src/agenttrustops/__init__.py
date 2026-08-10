@@ -12,7 +12,13 @@ from .errors import (
     IdempotencyConflict,
     InvalidTransition,
 )
-from .integrations import as_langgraph_node
+from .integrations import (
+    OPAPolicy,
+    as_langgraph_node,
+    as_mcp_tool_handler,
+    as_openai_agents_tool,
+    register_fastmcp_action,
+)
 from .ledger import SQLiteActionLedger
 from .models import (
     ActionContext,
@@ -44,6 +50,7 @@ __all__ = [
     "IndeterminateOutcome",
     "InvalidTransition",
     "OIDCJWTVerifier",
+    "OPAPolicy",
     "OperationalSnapshot",
     "PolicyDecision",
     "PolicyOutcome",
@@ -53,7 +60,10 @@ __all__ = [
     "TrustedAction",
     "VerifiedPrincipal",
     "as_langgraph_node",
+    "as_mcp_tool_handler",
+    "as_openai_agents_tool",
     "collect_operational_snapshot",
+    "register_fastmcp_action",
     "render_prometheus",
     "trusted_action",
 ]

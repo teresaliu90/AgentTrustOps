@@ -1,5 +1,8 @@
 # Integrations
 
+Every adapter follows one rule: the model may propose business arguments, but actor, tenant, roles,
+evidence, credentials, and idempotency come from trusted host state.
+
 ## LangGraph
 
 `as_langgraph_node` has no LangGraph dependency. It returns a normal sync or async callable that
@@ -17,19 +20,78 @@ node = as_langgraph_node(
 Route `pending_approval` to a graph interrupt and `unknown` to an operator/reconciliation path. Do
 not let model-generated state construct a verified principal or authoritative evidence.
 
+## OpenAI Agents SDK
+
+Install `agenttrustops[openai]` and wrap a registered action as an Agents SDK `FunctionTool`:
+
+```python
+from agenttrustops import as_openai_agents_tool
+
+refund_tool = as_openai_agents_tool(
+    execute_refund,
+    params_json_schema={
+        "type": "object",
+        "properties": {
+            "order_id": {"type": "string"},
+            "amount": {"type": "number"},
+        },
+        "required": ["order_id", "amount"],
+        "additionalProperties": False,
+    },
+    context=lambda tool_ctx, args: tool_ctx.context.action_context,
+    idempotency_key=lambda tool_ctx, args: tool_ctx.context.request_id,
+)
+```
+
+Here `tool_ctx.context` is application context supplied to the Agents SDK run, not model-visible
+JSON. The tool returns public run state; callers branch or hand off when status is
+`pending_approval` or `unknown`. See the official [OpenAI Agents SDK function-tool documentation](https://openai.github.io/openai-agents-python/tools/)
+and [context documentation](https://openai.github.io/openai-agents-python/context/).
+
+## MCP servers
+
+Install `agenttrustops[mcp]`. `register_fastmcp_action` registers an async handler on a FastMCP
+server and returns it for direct contract tests. Resolve the principal from authenticated request
+middleware or a request-local `ContextVar`:
+
+```python
+handler = register_fastmcp_action(
+    mcp,
+    execute_refund,
+    context=lambda: verified_action_context.get(),
+    idempotency_key=lambda arguments: authenticated_request_id.get(),
+)
+```
+
+Do not expose identity or idempotency as MCP tool arguments. The host is responsible for transport
+authentication and populating both request-local values before dispatch. The adapter's public
+result intentionally omits the key.
+
 ## Temporal and other workflow engines
 
 Call `invoke_request` inside an activity and use the workflow/activity identity as the stable
 idempotency key. AgentTrustOps governs the business side effect; the workflow engine governs
-scheduling and orchestration. An activity retry will receive the existing run instead of executing
+scheduling and orchestration. An activity retry receives the existing run instead of executing
 again. Unknown outcomes must be resolved before the workflow proceeds.
 
 ## OPA and policy engines
 
-Implement the small `ActionPolicy.evaluate` protocol and translate the engine response into
-`PolicyDecision`. Store the policy bundle/version digest in `policy_digest` so approval remains
-bound to exactly what was evaluated. Treat engine timeouts and invalid output as failures; the
-runtime fails closed.
+`OPAPolicy` calls an OPA Data API document over HTTPS and validates a strict result contract:
+
+```python
+from agenttrustops import OPAPolicy
+
+policy = OPAPolicy("https://opa.internal", "agenttrustops/decision")
+```
+
+OPA receives `input.action_name`, `input.arguments`, and the trusted action context. It must return
+`result.outcome`, `result.reason`, and `result.policy_version`; optional `policy_digest` binds an
+approval to the evaluated bundle. Timeouts, undefined documents, HTTP errors, oversized replies,
+and malformed output raise at the boundary, which the runtime converts to a fail-closed denial.
+HTTP is disabled unless explicitly allowed for local testing. See OPA's official [REST API](https://www.openpolicyagent.org/docs/rest-api).
+The repository includes a runnable [Rego decision document](../examples/opa/agenttrustops.rego).
+CI starts pinned OPA 1.17.0 and exercises allow, approval-required, and deny through the real Data
+API, so the adapter contract is not based only on a mocked HTTP response.
 
 ## Evaluation and observability tools
 

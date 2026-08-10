@@ -7,7 +7,7 @@ Thank you for helping make risky agent actions easier to reason about.
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -e '.[api,postgres,oidc,dev]'
+pip install -e '.[api,postgres,oidc,openai,mcp,dev]'
 ruff check .
 ruff format --check .
 python -m unittest discover -s tests -v
@@ -33,5 +33,7 @@ policies. Keep each pull request focused and include a test for behavioral chang
 Changes to the state machine, fingerprint, approval binding, event hashing, or schema must include
 migration notes and failure-path tests.
 
-Use the structured issue forms for reproducible bugs and adversarial scenario proposals. For a
-security vulnerability, follow [SECURITY.md](SECURITY.md) instead of opening a public issue.
+Use the structured issue forms for reproducible bugs, adversarial scenario proposals, and genuine
+design-partner/adopter reports. Adopter claims require the consent and evidence rules in
+[ADOPTERS.md](ADOPTERS.md). For a security vulnerability, follow [SECURITY.md](SECURITY.md) instead
+of opening a public issue.

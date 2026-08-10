@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>AgentTrustOps Control Plane</title>
+    <link rel="stylesheet" href="/ui/control-plane.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to operations</a>
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">AT</span>
+        <div>
+          <strong>AgentTrustOps</strong>
+          <span>Control plane</span>
+        </div>
+      </div>
+      <div class="connection" id="connection-state" data-state="offline">
+        <span aria-hidden="true"></span>
+        <output>Disconnected</output>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">SIDE-EFFECT GOVERNANCE</p>
+          <h1 id="page-title">Decide before agents act.</h1>
+          <p class="lede">Review approvals, resume authorized work, and reconcile uncertain provider outcomes without exposing credentials or model inputs.</p>
+        </div>
+        <form id="connect-form" class="connect-card">
+          <label for="token">Bearer credential</label>
+          <div class="token-row">
+            <input id="token" name="token" type="password" autocomplete="off" spellcheck="false" required placeholder="Paste a scoped credential">
+            <button class="primary" type="submit">Connect</button>
+          </div>
+          <div class="credential-note">
+            <span>Memory only · cleared on refresh</span>
+            <button id="disconnect" class="text-button" type="button">Clear</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="summary" aria-label="Run summary">
+        <article><span>Pending approval</span><strong id="count-pending">—</strong></article>
+        <article><span>Approved</span><strong id="count-approved">—</strong></article>
+        <article><span>Unknown</span><strong id="count-unknown">—</strong></article>
+        <article><span>Completed</span><strong id="count-completed">—</strong></article>
+      </section>
+
+      <section class="workspace">
+        <div class="queue-panel">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">TENANT-SCOPED QUEUE</p>
+              <h2>Governed runs</h2>
+            </div>
+            <button id="refresh" class="secondary" type="button">Refresh</button>
+          </div>
+          <nav class="filters" aria-label="Run status filters">
+            <button class="filter active" type="button" data-filter="all" aria-pressed="true">All</button>
+            <button class="filter" type="button" data-filter="pending_approval" aria-pressed="false">Pending</button>
+            <button class="filter" type="button" data-filter="approved" aria-pressed="false">Approved</button>
+            <button class="filter" type="button" data-filter="unknown" aria-pressed="false">Unknown</button>
+          </nav>
+          <div id="run-list" class="run-list" aria-live="polite">
+            <div class="empty-state">Connect with a viewer credential to load runs.</div>
+          </div>
+        </div>
+
+        <aside class="decision-panel" aria-labelledby="decision-title">
+          <p class="eyebrow">HUMAN DECISION</p>
+          <h2 id="decision-title">Select a run</h2>
+          <dl id="run-details" class="details">
+            <div><dt>Status</dt><dd>—</dd></div>
+            <div><dt>Action</dt><dd>—</dd></div>
+            <div><dt>Run ID</dt><dd>—</dd></div>
+            <div><dt>Policy</dt><dd>—</dd></div>
+          </dl>
+          <label for="decision-note">Operator note</label>
+          <textarea id="decision-note" minlength="3" maxlength="2000" rows="4" placeholder="Record the evidence behind this decision"></textarea>
+          <div class="decision-actions">
+            <button id="approve" class="primary" type="button">Approve</button>
+            <button id="reject" class="danger" type="button">Reject</button>
+            <button id="resume" class="secondary" type="button">Resume</button>
+          </div>
+          <fieldset>
+            <legend>Reconcile an unknown outcome</legend>
+            <select id="reconcile-outcome" aria-label="Reconciliation outcome">
+              <option value="completed">Provider completed</option>
+              <option value="failed">Provider failed</option>
+            </select>
+            <button id="reconcile" class="secondary" type="button">Reconcile</button>
+          </fieldset>
+          <p class="boundary">Buttons remain subject to server-side tenant and role checks. The console cannot grant authority.</p>
+        </aside>
+      </section>
+    </main>
+    <div id="notice" class="notice" role="status" aria-live="polite"></div>
+    <script src="/ui/control-plane.js" defer></script>
+  </body>
+</html>

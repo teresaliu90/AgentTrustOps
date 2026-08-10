@@ -23,9 +23,13 @@ agent side effects. It should usually be composed with, not selected instead of,
 5. Default HTTP and audit views omit idempotency keys and sensitive bodies.
 6. The same contract runs locally on SQLite and concurrently on PostgreSQL.
 7. Safe and deliberately unsafe policies are executable CI evidence, not screenshots.
+8. OpenAI Agents, FastMCP, LangGraph, and OPA adapters preserve the same trusted-context boundary.
+9. A packaged browser console makes approval, resume, and reconciliation operable without weakening
+   server-side tenant or role authorization.
 
 ## Remaining gaps
 
-The project does not yet have measured external production adoption, a hosted approval UI, WORM
-audit export, provider-certified connectors, or compliance certification. Those are stated openly
-instead of being represented by synthetic benchmarks. See the roadmap for planned work.
+The project does not yet have measured external production adoption, a hosted managed control plane,
+WORM audit export, provider-certified connectors, regional HA evidence, independent security audit,
+or compliance certification. Those are stated openly instead of being represented by synthetic
+benchmarks or maintainer claims. See the roadmap for planned work.

@@ -33,6 +33,7 @@ signature/issuer/audience/expiry, and maps configured tenant/role claims into `V
 | Method and path | Required role | Purpose |
 |---|---|---|
 | `GET /healthz`, `GET /readyz` | public | liveness and ledger readiness |
+| `GET /ui` | public shell; API calls authenticated | browser operations console |
 | `GET /v1/actions` | `agenttrustops_viewer` | list registered governed actions |
 | `POST /v1/actions/{name}/invoke` | `agenttrustops_invoker` | submit an action with `Idempotency-Key` |
 | `GET /v1/runs` | `agenttrustops_viewer` | tenant-scoped run list |
@@ -67,3 +68,11 @@ JSON content apart from transport headers. Different content with the same key r
 `InvokeRequest` accepts only `arguments` and opaque `evidence_refs`; extra actor, tenant, or role
 fields are rejected. The application resolver must fetch or validate evidence from an authoritative
 system. Passing user/model text through as verified evidence defeats the policy boundary.
+
+## Browser console boundary
+
+The console is served by the same FastAPI process at `/ui`; it is not a separate privileged API.
+Its HTML, CSS, and JavaScript are public static assets, while every data request requires a scoped
+bearer credential. The token is held only in a JavaScript variable, never browser storage, and is
+cleared by refresh or the **Clear** control. A strict Content Security Policy permits only same-origin
+styles, scripts, and API connections. Server-side authorization remains authoritative.

@@ -1,40 +1,46 @@
-# Engineering and product scorecard
+# Unified GitHub competitiveness scorecard
 
-This rubric measures open-source product and engineering readiness, not GitHub popularity. It is a
-self-audit with reproducible repository evidence, not an independent certification.
+Snapshot: 2026-08-10. This self-audit deliberately includes engineering, GitHub release/community
+readiness, and real external adoption. It is not an independent certification and does not convert
+stars, tests, or maintainer usage into production customers.
 
-| Dimension | Weight | Score | Repository evidence |
+| Dimension | Weight | Score | Verifiable evidence and remaining limit |
 |---|---:|---:|---|
-| User pain and product completeness | 15% | 9.0 | invoke → policy → approval → execute → unknown → reconcile → audit lifecycle; concrete incident patterns |
-| Focused differentiation | 15% | 8.8 | request-fingerprint conflicts, bound approvals, leases, no blind retry, privacy-safe evidence chain |
-| Core correctness and reliability | 20% | 9.2 | atomic state/events, canonical fingerprints, execution ownership, heartbeats, migration and crash tests |
-| Security and privacy | 10% | 8.6 | OIDC/JWKS verifier, strict tenant/role binding, separation of duties, redacted defaults, CodeQL |
-| Runnable deployment | 10% | 8.6 | SDK, FastAPI control plane, SQLite, PostgreSQL, Dockerfile, Compose, health and metrics |
-| Testing and release evidence | 10% | 9.2 | 55 deterministic tests, threaded/async concurrency, real PostgreSQL CI contract, unsafe-policy gate |
-| Documentation and developer experience | 10% | 8.8 | five-minute paths, API/operations/architecture/migration/integration docs, typed wheel and CLI |
-| OSS and supply-chain governance | 5% | 8.5 | issue forms, PR checklist, CodeQL, Dependabot, dependency audit, package smoke, provenance workflow |
-| External adoption evidence | 5% | 3.0 | no fabricated users, design partners, independent security review, or external contributor history |
+| User pain and product completeness | 12% | 9.2 | invoke → policy → approval → execute → unknown → reconcile → audit; operator console and incident runbook |
+| Focused differentiation | 10% | 8.8 | fingerprint conflicts, bound approvals, leases, no blind retry, privacy-safe event chain; deliberately narrower than orchestration suites |
+| Core correctness and reliability | 18% | 9.3 | atomic state/events, chain anchors, ownership/heartbeats, migrations, threaded/async/real-PostgreSQL contracts; no distributed exactly-once claim |
+| Security and privacy | 12% | 8.7 | OIDC/JWKS, tenant/role separation, CSP console, CodeQL, dependency review, OpenSSF Scorecard, fail-closed OPA; no independent audit yet |
+| Deployment and operator UX | 10% | 8.7 | SDK, CLI, FastAPI, SQLite/PostgreSQL, Docker/Compose, metrics, browser operations console; no hosted managed service or regional HA reference |
+| Ecosystem integrations | 10% | 8.7 | tested LangGraph, OpenAI Agents SDK 0.19, FastMCP 1.29, OPA Data API 1.17, and generic workflow-engine contract; connector catalog is still small |
+| Testing and performance evidence | 10% | 8.8 | 64 tests, real PostgreSQL/OPA CI, package/action/container smoke, unsafe release gate, reproducible 1,000+1,000 SQLite probe; no independent load lab or SLO |
+| Release and supply chain | 8% | 9.0 | composite GitHub Action, wheel/sdist, checksums, CycloneDX SBOM, attestations, GHCR provenance, manual PyPI Trusted Publishing path |
+| OSS community process | 5% | 8.0 | issue forms, adopter consent policy, governance/support/security docs, citation, Code of Conduct, contributor path; single-maintainer bus factor remains |
+| Verified external adoption | 5% | 1.0 | no named or privately verified production adopter; one star is interest, not adoption, and the adopter registry is intentionally empty |
 
-Weighted result: **8.6/10**.
+Weighted result after the `v0.2.0` Release and GHCR jobs are green: **8.49/10, reported as 8.5/10**.
+Until those external artifacts resolve publicly, the release/supply-chain row must be discounted and
+the result remains below 8.5.
 
-## Why it is above 8.5
+## Why the adoption score stays low
 
-The score comes from executable breadth around one painful production boundary rather than from a
-large feature count. The same failure contract is exercised through the SDK, authenticated API,
-SQLite, PostgreSQL, sync/async tools, CLI operations, and LangGraph adapter. The highest-weight
-correctness claims have explicit failure-path tests.
-
-## Why it is not a 9+
-
-There is no measured external production use, hosted approval UI, independent security audit,
-provider-certified connector, regional HA reference, or published SLO. Those gaps cannot be closed
-honestly by adding synthetic claims. External adoption remains separately visible even though its
-weight does not erase the engineering readiness of a new repository.
+Actual adoption is included, scored separately, and cannot be fixed by repository code. The project
+will raise it only with consented evidence in `ADOPTERS.md`: a named deployment, a privately verified
+anonymous deployment, or a design-partner pilot with version/backend/integration and volume band.
+Maintainer demos, CI runs, downloads, clones, and synthetic workloads do not qualify.
 
 ## Competitive interpretation
 
-AgentTrustOps has a significant technical advantage only in its chosen niche: governance of a
-single risky side effect across retries, approval, crashes, and audit. LangGraph and Temporal remain
-stronger orchestration systems; OPA remains a stronger general policy ecosystem; Promptfoo remains
-a broader evaluation system; observability vendors remain stronger trace UIs. The competitive
-claim is composable enforcement depth, not replacement of those categories.
+An 8.5 here means the repository is unusually complete and adoptable for a new, narrow control-plane
+project—not that it has the ecosystem power of OPA, Temporal, LangGraph, or established guardrail and
+observability vendors. AgentTrustOps has a strong technical wedge where those categories overlap:
+one risky side effect governed consistently across identity, policy, human approval, retry, crash,
+reconciliation, and redacted audit. The adapters make it complementary to incumbent ecosystems.
+
+## What blocks a defensible 9.0
+
+- at least two independently verifiable design-partner or production deployments;
+- an independent security review and published remediation record;
+- measured PostgreSQL contention, recovery, and tail-latency results on disclosed infrastructure;
+- a regional HA reference deployment and tested restore/failover procedure;
+- more external contributors and a second trusted maintainer;
+- provider-certified side-effect connectors or a broader maintained integration catalog.

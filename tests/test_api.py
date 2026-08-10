@@ -120,6 +120,21 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.headers["www-authenticate"], "Bearer")
 
+    def test_console_shell_is_public_hardened_and_keeps_api_authenticated(self) -> None:
+        page = self.client.get("/ui")
+        css = self.client.get("/ui/control-plane.css")
+        script = self.client.get("/ui/control-plane.js")
+
+        self.assertEqual(page.status_code, 200)
+        self.assertIn("AgentTrustOps Control Plane", page.text)
+        self.assertIn("default-src 'none'", page.headers["content-security-policy"])
+        self.assertEqual(page.headers["x-content-type-options"], "nosniff")
+        self.assertTrue(css.headers["content-type"].startswith("text/css"))
+        self.assertTrue(script.headers["content-type"].startswith("text/javascript"))
+        self.assertNotIn("localStorage", script.text)
+        self.assertNotIn("sessionStorage", script.text)
+        self.assertEqual(self.client.get("/v1/runs").status_code, 401)
+
     def test_retry_returns_the_same_public_answer_without_regeneration(self) -> None:
         first = self.invoke_high()
         run_id = first.json()["run_id"]

@@ -1,0 +1,21 @@
+{
+  "duplicate_retry": {
+    "mean_ms": 1.614,
+    "operations_per_second": 619.56,
+    "p50_ms": 1.49,
+    "p95_ms": 2.07
+  },
+  "expected_function_executions": 1001,
+  "integrity_verified": true,
+  "iterations_per_case": 1000,
+  "platform": "macOS-15.6.1-arm64-arm-64bit-Mach-O",
+  "protected_function_executions": 1001,
+  "python": "3.13.7",
+  "schema": "agenttrustops-benchmark-v1",
+  "unique": {
+    "mean_ms": 2.902,
+    "operations_per_second": 344.54,
+    "p50_ms": 2.776,
+    "p95_ms": 3.644
+  }
+}

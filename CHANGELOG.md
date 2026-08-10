@@ -5,7 +5,7 @@ minor releases may contain clearly documented breaking changes.
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-08-08
+## [0.2.0] - 2026-08-10
 
 ### Added
 
@@ -18,6 +18,12 @@ minor releases may contain clearly documented breaking changes.
 - asymmetric OIDC/JWKS verification with strict issuer, audience, expiry, algorithm, and claim checks;
 - PostgreSQL backend, Docker image, Compose deployment, and database contract CI;
 - dependency-free LangGraph adapter;
+- OpenAI Agents SDK, MCP host, and fail-closed OPA adapters;
+- built-in authenticated operations console for approvals, resume, and reconciliation;
+- reusable GitHub release-gate action and adoption/design-partner intake;
+- reproducible SQLite performance probe and CI benchmark artifact;
+- GitHub Release wheels, checksums, CycloneDX SBOM, attestations, and GHCR publishing workflow;
+- OpenSSF Scorecard publication and pull-request dependency review;
 - package build verification, dependency audit, CodeQL, and expanded concurrency/API tests.
 
 ### Changed
