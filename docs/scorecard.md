@@ -14,7 +14,7 @@ production-adoption points.
 | Deployment and operator UX | 10% | 9.0 | 60-second wheel demo, SDK/CLI/API/UI, SQLite/PostgreSQL, Docker, OIDC startup, metrics/recovery; no regional HA evidence |
 | Ecosystem integrations | 10% | 8.8 | tested LangGraph, OpenAI Agents, FastMCP, OPA and reusable GitHub Action; small connector catalog |
 | Testing and performance evidence | 10% | 9.1 | 74 tests, real PostgreSQL/OPA CI, package/container/action smoke, tamper/signature negatives, reproducible benchmark; no independent load lab/SLO |
-| Release and supply chain | 8% | 9.2 | v0.3 wheel/sdist, checksums, CycloneDX SBOM, attestations and public GHCR provenance path; PyPI is not claimed live |
+| Release and supply chain | 8% | 9.2 | [v0.3.0](https://github.com/teresaliu90/AgentTrustOps/releases/tag/v0.3.0) wheel/sdist, checksums, CycloneDX SBOM, attestations and public GHCR provenance; PyPI is not claimed live |
 | OSS community process | 5% | 8.4 | issue forms, Discussions, adoption ladder/funnel, governance/support/security, citation, Code of Conduct; single-maintainer bus factor |
 | Verified external adoption | 5% | 1.0 | 1 star, 0 forks, and no named or privately verified production adopter at snapshot; repository activity is not adoption |
 
@@ -25,6 +25,24 @@ Weighted calculation:
 + 0.10×8.8 + 0.10×9.1 + 0.08×9.2 + 0.05×8.4 + 0.05×1.0
 = 8.726 → 8.7/10
 ```
+
+## Verified v0.3.0 release evidence
+
+- [main CI](https://github.com/teresaliu90/AgentTrustOps/actions/runs/31365351009) and
+  [tag CI](https://github.com/teresaliu90/AgentTrustOps/actions/runs/31365354010) passed, including
+  Python 3.11–3.13, real PostgreSQL, real OPA, package, container, dependency audit, and reusable
+  action jobs;
+- [CodeQL](https://github.com/teresaliu90/AgentTrustOps/actions/runs/31365350956),
+  [OpenSSF Scorecard](https://github.com/teresaliu90/AgentTrustOps/actions/runs/31365351010), and the
+  [release workflow](https://github.com/teresaliu90/AgentTrustOps/actions/runs/31365354005) passed;
+- the public wheel was anonymously downloaded, installed without repository access, and completed
+  the persisted demo; its Release digest is
+  `sha256:77fc2cc1653124949a31d53da22d10215a6ca5d9508e5849d638461ffecbae86`;
+- the public `ghcr.io/teresaliu90/agenttrustops:v0.3.0` OCI index was anonymously retrievable with
+  digest `sha256:c0c6be36a9b3ad7390b7fedcbaca5d0f7522596290caab742cdd0dfdcbd31a7f`;
+- the [v0.3 design-partner challenge](https://github.com/teresaliu90/AgentTrustOps/discussions/3)
+  is public, while adoption remains scored at 1.0 until an independent report meets the evidence
+  policy.
 
 The result is **8.7/10 with real adoption included at 1.0/10**, not a score obtained by excluding
 the weakest category. It means the repository is technically competitive and unusually complete

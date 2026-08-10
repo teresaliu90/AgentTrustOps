@@ -192,7 +192,9 @@ Those limits are product requirements, not footnotes. See [non-goals](docs/non-g
 The current adopter registry remains honest. The [adoption ladder](docs/adoption-playbook.md)
 defines what raises the external-adoption score from 1 to 10, and the
 [unassisted design-partner challenge](docs/design-partner-feedback-kit.md) makes the first external
-proof reproducible. If you evaluate a real workflow, submit the
+proof reproducible. Join the public
+[v0.3 20-minute challenge](https://github.com/teresaliu90/AgentTrustOps/discussions/3). If you
+evaluate a real workflow, submit the
 [adopter report](https://github.com/teresaliu90/AgentTrustOps/issues/new?template=design-partner.yml)
 at the visibility level you control.
 
