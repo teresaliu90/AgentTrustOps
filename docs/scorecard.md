@@ -9,17 +9,18 @@ stars, tests, or maintainer usage into production customers.
 | User pain and product completeness | 12% | 9.2 | invoke → policy → approval → execute → unknown → reconcile → audit; operator console and incident runbook |
 | Focused differentiation | 10% | 8.8 | fingerprint conflicts, bound approvals, leases, no blind retry, privacy-safe event chain; deliberately narrower than orchestration suites |
 | Core correctness and reliability | 18% | 9.3 | atomic state/events, chain anchors, ownership/heartbeats, migrations, threaded/async/real-PostgreSQL contracts; no distributed exactly-once claim |
-| Security and privacy | 12% | 8.7 | OIDC/JWKS, tenant/role separation, CSP console, CodeQL, dependency review, OpenSSF Scorecard, fail-closed OPA; no independent audit yet |
+| Security and privacy | 12% | 8.7 | OIDC/JWKS, tenant/role separation, CSP console, CodeQL, dependency review, OpenSSF Scorecard, secret scanning/push protection, fail-closed OPA; no independent audit yet |
 | Deployment and operator UX | 10% | 8.7 | SDK, CLI, FastAPI, SQLite/PostgreSQL, Docker/Compose, metrics, browser operations console; no hosted managed service or regional HA reference |
 | Ecosystem integrations | 10% | 8.7 | tested LangGraph, OpenAI Agents SDK 0.19, FastMCP 1.29, OPA Data API 1.17, and generic workflow-engine contract; connector catalog is still small |
 | Testing and performance evidence | 10% | 8.8 | 64 tests, real PostgreSQL/OPA CI, package/action/container smoke, unsafe release gate, reproducible 1,000+1,000 SQLite probe; no independent load lab or SLO |
-| Release and supply chain | 8% | 9.0 | composite GitHub Action, wheel/sdist, checksums, CycloneDX SBOM, attestations, GHCR provenance, manual PyPI Trusted Publishing path |
-| OSS community process | 5% | 8.0 | issue forms, adopter consent policy, governance/support/security docs, citation, Code of Conduct, contributor path; single-maintainer bus factor remains |
-| Verified external adoption | 5% | 1.0 | no named or privately verified production adopter; one star is interest, not adoption, and the adopter registry is intentionally empty |
+| Release and supply chain | 8% | 9.0 | [v0.2.0 Release](https://github.com/teresaliu90/AgentTrustOps/releases/tag/v0.2.0) has wheel/sdist, checksums, CycloneDX SBOM and attestations; public GHCR image has SBOM/provenance; manual PyPI Trusted Publishing path is ready but not claimed live |
+| OSS community process | 5% | 8.0 | issue forms, Discussions, adopter consent policy, governance/support/security docs, citation, Code of Conduct, contributor path; single-maintainer bus factor remains |
+| Verified external adoption | 5% | 1.0 | snapshot has 1 star, 0 forks, and no named or privately verified production adopter; interest is not counted as adoption, and the adopter registry is intentionally empty |
 
-Weighted result after the `v0.2.0` Release and GHCR jobs are green: **8.49/10, reported as 8.5/10**.
-Until those external artifacts resolve publicly, the release/supply-chain row must be discounted and
-the result remains below 8.5.
+Verified weighted result: **8.49/10, reported as 8.5/10**. Main CI, CodeQL, OpenSSF, tag CI, and the
+[release workflow](https://github.com/teresaliu90/AgentTrustOps/actions/runs/31352872338) were green at
+the snapshot. The GHCR `v0.2.0` manifest was anonymously retrievable with digest
+`sha256:b868468c204bf72bb3975f0a59bb470fc01355b768e56078e752f49b05ff752a`.
 
 ## Why the adoption score stays low
 

@@ -253,5 +253,6 @@ Python 3.11–3.13, SQLite, a real PostgreSQL service, the API and browser-contr
 concurrency/crash contracts, package installation, dependency audit, adapter contracts, a reusable
 release action, and a deliberately unsafe release. Contributions, real design-partner reports, and
 adversarial scenarios are welcome under the [contribution guide](CONTRIBUTING.md).
+Questions and integration ideas are welcome in [GitHub Discussions](https://github.com/teresaliu90/AgentTrustOps/discussions).
 
 Apache-2.0 licensed.
