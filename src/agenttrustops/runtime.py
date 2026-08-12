@@ -14,6 +14,7 @@ from .errors import ApprovalDenied
 from .ledger import SQLiteActionLedger, request_fingerprint
 from .models import (
     ActionContext,
+    ActionExecutionContext,
     ActionResult,
     ActionStatus,
     PolicyDecision,
@@ -107,6 +108,7 @@ class TrustedAction:
         approval_roles: tuple[str, ...] = ("agenttrustops_approver",),
         reconciliation_roles: tuple[str, ...] = ("agenttrustops_reconciler",),
         allow_self_approval: bool = False,
+        execution_context_parameter: str | None = None,
     ):
         self.function = function
         self.ledger = ledger
@@ -125,7 +127,28 @@ class TrustedAction:
         if not self.approval_roles or not self.reconciliation_roles:
             raise ValueError("approval and reconciliation roles cannot be empty")
         self.allow_self_approval = allow_self_approval
+        self.execution_context_parameter = self._validate_execution_context_parameter(
+            execution_context_parameter
+        )
         update_wrapper(self, function)
+
+    def _validate_execution_context_parameter(self, name: str | None) -> str | None:
+        if name is None:
+            return None
+        normalized = name.strip()
+        if not normalized:
+            raise ValueError("execution_context_parameter cannot be empty")
+        parameter = inspect.signature(self.function).parameters.get(normalized)
+        if parameter is None:
+            raise ValueError(
+                f"protected function has no execution context parameter: {normalized}"
+            )
+        if parameter.kind not in {
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+            inspect.Parameter.KEYWORD_ONLY,
+        }:
+            raise ValueError("execution context parameter must accept a keyword value")
+        return normalized
 
     def __call__(self, *args: Any, **kwargs: Any) -> Never:
         method = "invoke_async" if self.is_async else "invoke"
@@ -212,6 +235,11 @@ class TrustedAction:
         *,
         idempotency_key_override: str | None = None,
     ) -> str | ActionResult:
+        if (
+            self.execution_context_parameter is not None
+            and self.execution_context_parameter in arguments
+        ):
+            raise ValueError("execution context is supplied only by AgentTrustOps")
         key = (
             idempotency_key_override
             if idempotency_key_override is not None
@@ -382,6 +410,7 @@ class TrustedAction:
                 action_name=self.name,
                 tenant_id=str(run["tenant_id"]),
                 idempotency_key=str(run["idempotency_key"]),
+                created_at=str(run["created_at"]),
                 arguments=dict(run["arguments"]),
             )
         )
@@ -491,7 +520,9 @@ class TrustedAction:
                 owner,
                 self.execution_lease_seconds,
             ):
-                value = self.function(**arguments)
+                value = self.function(
+                    **self._arguments_with_execution_context(run_id, arguments)
+                )
         except IndeterminateOutcome as error:
             return self._mark_unknown(run_id, owner, type(error).__name__)
         except Exception as error:  # noqa: BLE001 - convert tool failure into a safe run state
@@ -529,7 +560,12 @@ class TrustedAction:
                 owner,
                 self.execution_lease_seconds,
             ):
-                value = await cast(Awaitable[Any], self.function(**arguments))
+                value = await cast(
+                    Awaitable[Any],
+                    self.function(
+                        **self._arguments_with_execution_context(run_id, arguments)
+                    ),
+                )
         except asyncio.CancelledError:
             self._mark_unknown(run_id, owner, "CancelledError")
             raise
@@ -559,6 +595,27 @@ class TrustedAction:
             error_type=error_type,
         )
         return self._result_from_run(self.ledger.get_run(run_id))
+
+    def _arguments_with_execution_context(
+        self,
+        run_id: str,
+        arguments: Arguments,
+    ) -> Arguments:
+        values = dict(arguments)
+        parameter = self.execution_context_parameter
+        if parameter is None:
+            return values
+        run = self.ledger.get_run(run_id)
+        if run is None:
+            raise KeyError("run not found")
+        values[parameter] = ActionExecutionContext(
+            run_id=str(run["run_id"]),
+            action_name=str(run["action_name"]),
+            tenant_id=str(run["tenant_id"]),
+            idempotency_key=str(run["idempotency_key"]),
+            attempt=int(run["attempt"]),
+        )
+        return values
 
     @staticmethod
     def _result_from_run(
@@ -593,6 +650,7 @@ def trusted_action(
     approval_roles: tuple[str, ...] = ("agenttrustops_approver",),
     reconciliation_roles: tuple[str, ...] = ("agenttrustops_reconciler",),
     allow_self_approval: bool = False,
+    execution_context_parameter: str | None = None,
 ) -> Callable[[Callable[..., T]], TrustedAction]:
     """Protect a business action behind policy, approval, and idempotency."""
 
@@ -609,6 +667,7 @@ def trusted_action(
             approval_roles=approval_roles,
             reconciliation_roles=reconciliation_roles,
             allow_self_approval=allow_self_approval,
+            execution_context_parameter=execution_context_parameter,
         )
 
     return decorator

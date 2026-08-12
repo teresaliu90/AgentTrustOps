@@ -8,10 +8,23 @@ body:
     attributes:
       label: Relationship
       options:
+        - Independent sandbox evaluation
         - Evaluating
         - Design-partner pilot
         - Production adopter
         - Integration request
+    validations:
+      required: true
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider boundary
+      options:
+        - Stripe Sandbox
+        - Twilio Sandbox
+        - Another real provider sandbox
+        - Synthetic provider only
+        - No provider yet
     validations:
       required: true
   - type: dropdown
@@ -76,6 +89,21 @@ body:
         - 1,000–100,000
         - More than 100,000
         - Prefer not to disclose
+    validations:
+      required: true
+  - type: checkboxes
+    id: stripe_scenarios
+    attributes:
+      label: Sandbox evidence completed
+      options:
+        - label: Normal execution, ambiguous outcome, ten retries, changed-request conflict, provider reconciliation, and pending outcome were checked.
+        - label: The provider dashboard showed exactly one operation for the ambiguous synthetic request.
+        - label: A signed redacted audit bundle was independently verified.
+  - type: textarea
+    id: independence
+    attributes:
+      label: Independence and assistance
+      description: State any relationship to the maintainer and assistance received during the first run.
     validations:
       required: true
   - type: checkboxes

@@ -14,6 +14,10 @@ contract tests. It does not certify a particular business integration.
   export; use independently controlled append-only/WORM storage when immutability is required.
 - **Exactly once:** database claims stop duplicate local execution. Distributed exactly-once is not
   claimed; the provider must also enforce a stable idempotency key.
+- **Provider adapters:** `ActionExecutionContext` safely supplies the governed key to protected
+  code. The included Stripe adapter refuses live keys and is Sandbox-only; production payment
+  integration still requires provider review, key custody, webhook verification, retention, and
+  organization-specific failure semantics.
 - **Crash window:** ambiguous provider results and abandoned leases become `unknown`, suppressing
   blind retry until verified reconciliation.
 - **Sensitive data:** default views redact payloads, but the reference schema stores arguments,
@@ -22,5 +26,5 @@ contract tests. It does not certify a particular business integration.
   regional HA topology or measured SLO.
 - **Adoption:** tests and demos are technical evidence, not proof of production use or compliance.
 
-The included fictional RefundOps adapter never contacts a payment system and must not be mistaken
-for a production financial integration.
+The fictional RefundOps adapter never contacts a payment system. The Stripe example contacts only
+Sandbox and must not be mistaken for a production financial integration.

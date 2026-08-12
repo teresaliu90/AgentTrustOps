@@ -13,6 +13,10 @@ minor releases may contain clearly documented breaking changes.
   audit evidence and fail-safe handling of provider outages;
 - authenticated provider-reconciliation API and console control, contract tests, documentation,
   and executable synthetic payment example.
+- trusted `ActionExecutionContext` injection so protected adapters receive the persisted run and
+  provider idempotency key without exposing them as model or HTTP arguments;
+- live-key-refusing Stripe Sandbox adapter/probe, six-scenario evaluation runner, signed evidence
+  packet, case-study policy, and expanded independent-evaluation issue form.
 
 ## [0.3.0] - 2026-08-10
 

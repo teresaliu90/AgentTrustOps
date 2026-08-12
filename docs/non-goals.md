@@ -8,7 +8,8 @@ AgentTrustOps has a narrow enforcement responsibility. It does not aim to:
 - promise distributed exactly-once delivery without provider-native idempotency;
 - automatically compensate an uncertain or irreversible side effect;
 - claim that a database administrator cannot rewrite a SQLite or PostgreSQL history;
-- ship a real payment connector, identity provider, fraud engine, or compliance certification;
+- present the Stripe Sandbox evidence adapter as a production payment connector, fraud engine,
+  provider certification, or compliance certification;
 - claim high availability, regional failover, external production adoption, or SLOs without
   measured evidence;
 - present the reference UI/CLI as a hosted managed service or substitute for an organization's

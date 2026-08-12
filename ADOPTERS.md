@@ -12,3 +12,10 @@ An adopter entry must record the version, backend, integration, approximate run 
 
 The score attached to this evidence is defined in the [verifiable adoption ladder](docs/adoption-playbook.md).
 Maintainer demos, CI, downloads, and issue creation do not move it.
+
+## Independent Sandbox evaluations
+
+None verified yet. The Stripe Sandbox runner and consented report workflow are ready at
+[`examples/stripe_sandbox`](examples/stripe_sandbox/README.md). The first independently completed,
+unassisted report moves the adoption ladder from maintainer-only validation to one external
+evaluation; it does not become a production-adopter claim.

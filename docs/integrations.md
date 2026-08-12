@@ -3,6 +3,42 @@
 Every adapter follows one rule: the model may propose business arguments, but actor, tenant, roles,
 evidence, credentials, and idempotency come from trusted host state.
 
+## Trusted provider execution context
+
+An adapter that must forward the governed key can request a runtime-only parameter:
+
+```python
+@trusted_action(
+    ledger=ledger,
+    policy=policy,
+    risk="payment",
+    idempotency_key=payment_key,
+    execution_context_parameter="execution",
+)
+def charge(invoice_id, amount, currency, *, execution):
+    return provider.charge(
+        invoice_id=invoice_id,
+        amount=amount,
+        currency=currency,
+        execution=execution,
+    )
+```
+
+`execution` is an `ActionExecutionContext` built from the persisted run after the execution lease
+is claimed. It includes the exact `run_id`, `tenant_id`, `idempotency_key`, and attempt. Supplying
+that parameter through SDK or HTTP arguments is rejected before policy or provider execution.
+
+## Stripe Sandbox
+
+Install `agenttrustops[stripe]`. `StripeSandboxPaymentAdapter` refuses live keys, forwards the
+trusted AgentTrustOps idempotency key to the official Stripe SDK, validates amount/currency/run
+metadata, and persists no client secret. `StripeSandboxPaymentProbe` replays the exact same Sandbox
+POST under Stripe's idempotency contract; `succeeded`, non-committed, and in-progress statuses map
+to the three provider outcomes.
+
+Use the [six-scenario runner](../examples/stripe_sandbox/README.md) to produce a signed, redacted
+evaluation packet. This is a Sandbox example, not a production connector or Stripe certification.
+
 ## LangGraph
 
 `as_langgraph_node` has no LangGraph dependency. It returns a normal sync or async callable that

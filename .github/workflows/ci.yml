@@ -19,7 +19,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
-      - run: pip install -e '.[api,postgres,oidc,openai,mcp,dev]'
+      - run: pip install -e '.[api,postgres,oidc,openai,mcp,stripe,dev]'
       - run: ruff check .
       - run: ruff format --check .
       - run: mypy src/agenttrustops
@@ -110,7 +110,7 @@ jobs:
         with:
           python-version: "3.13"
       - run: python -m pip install --upgrade pip pip-audit
-      - run: pip install -e '.[api,postgres,oidc]'
+      - run: pip install -e '.[api,postgres,oidc,stripe]'
       - run: pip-audit
 
   container:

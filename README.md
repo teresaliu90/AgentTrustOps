@@ -115,6 +115,11 @@ gateways use `invoke_request` to supply the caller's stable `Idempotency-Key` ex
 `ActionContext` is trusted SDK input; production gateways must derive it from authenticated identity
 and systems of record, never model-visible arguments.
 
+Provider adapters can opt into an `ActionExecutionContext` injected after the run is persisted and
+claimed. It carries the exact run, tenant, attempt, and idempotency key and cannot be supplied in
+business arguments. This closes the common gap where a payment adapter accidentally recomputes a
+different provider key.
+
 ### Reconcile the real provider, not a model claim
 
 For `unknown` runs, a server-owned `ProviderProbe` receives the persisted idempotency key and
@@ -124,6 +129,23 @@ atomically with the final state, and the protected action is never executed agai
 console exposes the same guarded lookup without accepting an outcome from the operator. See the
 [provider reconciliation contract](docs/provider-reconciliation.md) and its
 [`synthetic executable example`](examples/provider_reconciliation.py).
+
+### Run the Stripe Sandbox evidence path
+
+The optional Stripe integration refuses live keys and exercises a real Sandbox boundary with six
+checks: normal payment, injected ambiguous outcome, ten retries, changed-request conflict,
+provider-backed reconciliation, and a still-pending payment. It writes a signed redacted evidence
+packet and case-report draft:
+
+```bash
+pip install -e '.[stripe,audit]'
+export STRIPE_SECRET_KEY='sk_test_...'
+python examples/stripe_sandbox/run_evaluation.py --output-dir stripe-evaluation-001
+```
+
+Do not publish the generated SQLite ledger or any key. Follow the
+[Stripe Sandbox evaluation guide](examples/stripe_sandbox/README.md). Until an independent person
+runs it with their own Sandbox and consents to a report, it is integration capability—not adoption.
 
 ## Production-shaped control plane
 
@@ -155,7 +177,7 @@ provider-native idempotency, retention, and HA remain deployment responsibilitie
 
 ## Integrate without moving authority into the prompt
 
-Tested adapters are included for LangGraph, OpenAI Agents SDK, FastMCP, and the OPA Data API. In
+Tested adapters are included for LangGraph, OpenAI Agents SDK, FastMCP, OPA, and Stripe Sandbox. In
 every adapter the model sees only business arguments; verified identity, evidence, and retry keys
 come from trusted application context.
 
@@ -217,6 +239,7 @@ at the visibility level you control.
 - [Operations and incident runbook](docs/operations.md)
 - [Security model](docs/threat-model.md) and [production boundaries](docs/production-boundaries.md)
 - [Framework integrations](docs/integrations.md)
+- [Stripe Sandbox external-evaluation path](examples/stripe_sandbox/README.md)
 - [Competitive comparison](docs/comparison.md) and [evidence-based scorecard](docs/scorecard.md)
 - [Publishing](docs/publishing.md), [roadmap](ROADMAP.md), and [changelog](CHANGELOG.md)
 - [Adopters](ADOPTERS.md), [governance](GOVERNANCE.md), [support](SUPPORT.md), and [contributing](CONTRIBUTING.md)

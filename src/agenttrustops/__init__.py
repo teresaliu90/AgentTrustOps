@@ -21,6 +21,9 @@ from .errors import (
 )
 from .integrations import (
     OPAPolicy,
+    StripeSandboxPaymentAdapter,
+    StripeSandboxPaymentFailed,
+    StripeSandboxPaymentProbe,
     as_langgraph_node,
     as_mcp_tool_handler,
     as_openai_agents_tool,
@@ -29,6 +32,7 @@ from .integrations import (
 from .ledger import SQLiteActionLedger
 from .models import (
     ActionContext,
+    ActionExecutionContext,
     ActionResult,
     ActionStatus,
     PolicyDecision,
@@ -53,6 +57,7 @@ from .runtime import IndeterminateOutcome, TrustedAction, trusted_action
 
 __all__ = [
     "ActionContext",
+    "ActionExecutionContext",
     "ActionRegistry",
     "ActionResult",
     "ActionStatus",
@@ -76,6 +81,9 @@ __all__ = [
     "ProviderProbe",
     "SQLiteActionLedger",
     "StaticTokenVerifier",
+    "StripeSandboxPaymentAdapter",
+    "StripeSandboxPaymentFailed",
+    "StripeSandboxPaymentProbe",
     "TrustedAction",
     "VerifiedPrincipal",
     "as_langgraph_node",

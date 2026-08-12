@@ -27,6 +27,37 @@ class ActionStatus(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class ActionExecutionContext:
+    """Trusted runtime identity injected only into protected business code.
+
+    This context is constructed from the persisted run after execution is
+    claimed. It is never accepted from model arguments or an HTTP request.
+    Provider adapters can therefore forward the exact governed idempotency key
+    without recomputing it from untrusted input.
+    """
+
+    run_id: str
+    action_name: str
+    tenant_id: str
+    idempotency_key: str
+    attempt: int
+
+    def __post_init__(self) -> None:
+        for value, name in (
+            (self.run_id, "run_id"),
+            (self.action_name, "action_name"),
+            (self.tenant_id, "tenant_id"),
+            (self.idempotency_key, "idempotency_key"),
+        ):
+            normalized = value.strip()
+            if not normalized:
+                raise ValueError(f"{name} cannot be empty")
+            object.__setattr__(self, name, normalized)
+        if self.attempt < 1:
+            raise ValueError("attempt must be at least one")
+
+
+@dataclass(frozen=True, slots=True)
 class ActionContext:
     """Identity and evidence supplied by the trusted application boundary.
 
