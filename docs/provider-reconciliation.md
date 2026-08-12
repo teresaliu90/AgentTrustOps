@@ -37,9 +37,7 @@ class PaymentProbe:
 
     def lookup(self, request: ProviderLookup) -> ProviderObservation:
         try:
-            operation = payment_client.get_by_idempotency_key(
-                request.idempotency_key
-            )
+            operation = payment_client.get_by_idempotency_key(request.idempotency_key)
         except TimeoutError as error:
             raise ProviderLookupError("payment lookup unavailable") from error
 
