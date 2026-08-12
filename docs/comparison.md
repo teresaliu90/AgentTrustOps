@@ -49,17 +49,20 @@ These claims are linked to tests or runnable commands rather than screenshots:
    same key + changed actor, tenant, roles, evidence, risk, arguments, or metadata is a hard conflict.
 2. Approval binds verified principal, tenant, role, request fingerprint, policy version/digest,
    expiry, note, and separation of duties.
-3. Transactional execution ownership plus heartbeats makes abandoned workers `unknown`; automatic
-   execution is suppressed until an authenticated operator reconciles the provider result.
-4. State and event append commit atomically on SQLite and PostgreSQL, with per-run count/head-anchored
+3. Transactional execution ownership plus heartbeats makes abandoned workers `unknown`; a
+   server-owned probe derives its lookup from the persisted request and resolves only an
+   authoritative `committed` or `not_committed` result—never a model/caller claim.
+4. `pending` observations and provider lookup failures remain `unknown`, while every accepted
+   observation is audited and the protected action is never re-executed during reconciliation.
+5. State and event append commit atomically on SQLite and PostgreSQL, with per-run count/head-anchored
    SHA-256 chains.
-5. Default HTTP/audit views omit credentials, idempotency keys, raw identities, arguments, evidence,
+6. Default HTTP/audit views omit credentials, idempotency keys, raw identities, arguments, evidence,
    results, and sensitive event fields.
-6. Redacted audit bundles refuse invalid source chains, support Ed25519 signing, and verify offline
+7. Redacted audit bundles refuse invalid source chains, support Ed25519 signing, and verify offline
    with a separately pinned public key.
-7. OIDC/JWKS, static-demo auth, OPA, LangGraph, OpenAI Agents, and FastMCP adapters keep verified
+8. OIDC/JWKS, static-demo auth, OPA, LangGraph, OpenAI Agents, and FastMCP adapters keep verified
    authority outside model-controlled arguments.
-8. Safe and deliberately unsafe policy fixtures run as a reusable GitHub release gate with no model,
+9. Safe and deliberately unsafe policy fixtures run as a reusable GitHub release gate with no model,
    API key, network dependency, or nondeterministic judge.
 
 Run the focused evidence locally:

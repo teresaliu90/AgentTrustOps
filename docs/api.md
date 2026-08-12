@@ -42,6 +42,7 @@ signature/issuer/audience/expiry, and maps configured tenant/role claims into `V
 | `POST /v1/runs/{id}/approve` or `/reject` | action approval role | record a bound decision |
 | `POST /v1/runs/{id}/resume` | `agenttrustops_executor` | execute an approved action |
 | `POST /v1/runs/{id}/reconcile` | action reconciliation role | resolve an unknown outcome |
+| `POST /v1/runs/{id}/reconcile-from-provider` | action reconciliation role | query a server-owned probe and resolve only a definitive outcome |
 | `POST /v1/operations/recover` | `agenttrustops_operator` | move expired leases to unknown |
 | `GET /metrics` | `agenttrustops_observer` | tenant-scoped Prometheus text |
 
@@ -62,6 +63,10 @@ curl -sS -X POST "http://localhost:8787/v1/runs/$RUN_ID/resume" \
 Default action responses never include authorization credentials, idempotency keys, original
 request bodies, evidence bodies, or identity claims. The same request/key returns byte-equivalent
 JSON content apart from transport headers. Different content with the same key returns HTTP 409.
+
+Provider reconciliation accepts no request body or caller-supplied outcome. Configure a
+`ProviderProbe` by action name when calling `create_app`; the control plane reconstructs its lookup
+from the persisted request. See [provider-backed reconciliation](provider-reconciliation.md).
 
 ## Trust boundary
 

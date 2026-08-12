@@ -31,8 +31,9 @@
   Provider-specific discovery, claim mapping, workload identity, and mTLS remain deployment work.
 - **Audit integrity:** hash chains are tamper-evident, not immutable against a database
   administrator who can recompute the entire history.
-- **Provider crashes:** leases and `IndeterminateOutcome` prevent blind retry, but a provider lookup
-  is still needed to decide the real outcome.
+- **Provider crashes:** leases and `IndeterminateOutcome` prevent blind retry. Server-owned probes
+  provide a guarded lookup contract, but correctness still depends on each provider's consistency
+  and idempotency guarantees.
 - **Sensitive storage:** public views are redacted, while the reference schema retains arguments,
   evidence, and results for explainability.
 

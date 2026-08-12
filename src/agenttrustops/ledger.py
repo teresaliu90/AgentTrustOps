@@ -1024,6 +1024,94 @@ class SQLiteActionLedger:
             )
             return True
 
+    def apply_provider_observation(
+        self,
+        run_id: str,
+        *,
+        provider: str,
+        outcome: str,
+        summary: str,
+        reference: str | None,
+        status: ActionStatus | None,
+        result: Any,
+        principal: VerifiedPrincipal,
+    ) -> bool:
+        """Atomically record a provider lookup and its definitive transition."""
+
+        expected_status = {
+            "committed": ActionStatus.COMPLETED,
+            "not_committed": ActionStatus.FAILED,
+            "pending": None,
+        }
+        if outcome not in expected_status or status is not expected_status[outcome]:
+            raise ValueError("provider outcome and reconciliation status do not match")
+        if status is None and result is not None:
+            raise ValueError("pending provider observations cannot store a result")
+        result_json = None if result is None else _json(result)
+
+        with self._connection() as connection, connection:
+            connection.execute("BEGIN IMMEDIATE")
+            self._lock_run_tx(connection, run_id)
+            run = connection.execute(
+                "SELECT tenant_id, status FROM action_runs WHERE run_id = ?", (run_id,)
+            ).fetchone()
+            if run is None:
+                raise KeyError("run not found")
+            if principal.tenant_id != run["tenant_id"]:
+                raise ApprovalDenied(
+                    "reconciliation operator belongs to a different tenant"
+                )
+            if run["status"] != ActionStatus.UNKNOWN.value:
+                return False
+            payload = {
+                "operator_id": principal.actor_id,
+                "auth_source": principal.auth_source,
+                "provider": provider,
+                "outcome": outcome,
+                "summary": summary,
+            }
+            if reference is not None:
+                payload["reference"] = reference
+            self._append_event_tx(
+                connection,
+                run_id,
+                "provider.reconciliation.observed",
+                payload,
+            )
+            if status is None:
+                return True
+            reason = f"{provider} lookup: {summary}"
+            cursor = connection.execute(
+                """
+                UPDATE action_runs SET status = ?, reason = ?, result_json = ?, updated_at = ?
+                WHERE run_id = ? AND status = ?
+                """,
+                (
+                    status.value,
+                    reason,
+                    result_json,
+                    _timestamp(),
+                    run_id,
+                    ActionStatus.UNKNOWN.value,
+                ),
+            )
+            if cursor.rowcount != 1:
+                raise InvalidTransition(
+                    "provider observation and reconciliation became inconsistent"
+                )
+            self._append_event_tx(
+                connection,
+                run_id,
+                "run.reconciled",
+                {
+                    "operator_id": principal.actor_id,
+                    "auth_source": principal.auth_source,
+                    "outcome": status.value,
+                    "note": reason,
+                },
+            )
+            return True
+
     def get_run(self, run_id: str) -> dict[str, Any] | None:
         with self._connection() as connection:
             row = connection.execute(
@@ -1143,6 +1231,8 @@ class SQLiteActionLedger:
             "auth_source",
             "owner",
             "reason",
+            "reference",
+            "summary",
         }
         redacted: list[dict[str, Any]] = []
         for event in events:

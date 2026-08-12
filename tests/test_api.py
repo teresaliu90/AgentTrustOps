@@ -133,6 +133,7 @@ class ApiTests(unittest.TestCase):
         self.assertTrue(script.headers["content-type"].startswith("text/javascript"))
         self.assertNotIn("localStorage", script.text)
         self.assertNotIn("sessionStorage", script.text)
+        self.assertIn("reconcile-from-provider", script.text)
         self.assertEqual(self.client.get("/v1/runs").status_code, 401)
 
     def test_retry_returns_the_same_public_answer_without_regeneration(self) -> None:

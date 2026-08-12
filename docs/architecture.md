@@ -12,7 +12,8 @@ engine. The trusted application resolves identity and evidence, then submits a c
 5. The control plane derives actor, tenant, and roles from an `IdentityVerifier`.
 6. A server-side `InvocationContextResolver` resolves evidence; request bodies cannot assert
    actor, tenant, or roles.
-7. Operators inspect privacy-safe durable metrics and reconcile uncertain outcomes.
+7. Server-owned provider probes can inspect uncertain outcomes from persisted request identity.
+8. Operators inspect privacy-safe durable metrics and reconcile exceptional outcomes.
 
 ## State machine
 
@@ -29,13 +30,15 @@ created ── policy deny ─────────────────�
                                                        /     |      \
                                               completed   failed   unknown
                                                                      │
-                                                     verified reconcile
+                                               provider/manual reconcile
                                                                /           \
                                                        completed           failed
 ```
 
 Terminal and uncertain states cannot be executed again. An `unknown` run can only be resolved by
-an authenticated same-tenant principal with a reconciliation role.
+an authenticated same-tenant principal with a reconciliation role. A provider-backed resolution
+derives lookup inputs from the persisted run and treats `pending` or lookup failure as still
+unknown; it never executes the action again.
 
 ## Idempotency contract
 

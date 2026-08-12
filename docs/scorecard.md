@@ -1,19 +1,19 @@
 # Unified GitHub competitiveness scorecard
 
-Snapshot: 2026-08-10. This maintainer self-audit includes engineering, product clarity, release and
+Snapshot: 2026-08-12. This maintainer self-audit includes engineering, product clarity, release and
 community readiness, and independently verifiable external adoption. It is not a certification.
 Every score has an explicit limit; stars, tests, downloads, and maintainer usage never become
 production-adoption points.
 
 | Dimension | Weight | Score | Verifiable evidence and current limit |
 |---|---:|---:|---|
-| User pain and product completeness | 12% | 9.3 | intent → policy → approval → execute → unknown → reconcile → signed redacted evidence; no managed service |
-| Focused differentiation | 10% | 9.3 | side-effect commit-point category, changed-request conflicts, bound authority, crash ambiguity, portable proof; narrower than full orchestration/security suites |
+| User pain and product completeness | 12% | 9.4 | intent → policy → approval → execute → unknown → provider-backed reconcile → signed redacted evidence; no managed service |
+| Focused differentiation | 10% | 9.5 | side-effect commit point, changed-request conflicts, bound authority, provider-verified crash ambiguity, portable proof; narrower than full orchestration/security suites |
 | Core correctness and reliability | 18% | 9.4 | atomic state/events, chain anchors, ownership/heartbeats, migrations, threaded/async/real-PostgreSQL contracts; no distributed exactly-once claim |
 | Security and privacy | 12% | 9.1 | OIDC/JWKS, tenant/role separation, fail-closed OPA, CodeQL, dependency review, secret scanning, redacted signed export; no independent audit/KMS adapter |
 | Deployment and operator UX | 10% | 9.0 | 60-second wheel demo, SDK/CLI/API/UI, SQLite/PostgreSQL, Docker, OIDC startup, metrics/recovery; no regional HA evidence |
 | Ecosystem integrations | 10% | 8.8 | tested LangGraph, OpenAI Agents, FastMCP, OPA and reusable GitHub Action; small connector catalog |
-| Testing and performance evidence | 10% | 9.1 | 74 tests, real PostgreSQL/OPA CI, package/container/action smoke, tamper/signature negatives, reproducible benchmark; no independent load lab/SLO |
+| Testing and performance evidence | 10% | 9.2 | 82 tests, provider-reconciliation race/negative coverage, real PostgreSQL/OPA CI, package/container/action smoke, tamper/signature negatives, reproducible benchmark; no independent load lab/SLO |
 | Release and supply chain | 8% | 9.2 | [v0.3.0](https://github.com/teresaliu90/AgentTrustOps/releases/tag/v0.3.0) wheel/sdist, checksums, CycloneDX SBOM, attestations and public GHCR provenance; PyPI is not claimed live |
 | OSS community process | 5% | 8.4 | issue forms, Discussions, adoption ladder/funnel, governance/support/security, citation, Code of Conduct; single-maintainer bus factor |
 | Verified external adoption | 5% | 1.0 | 1 star, 0 forks, and no named or privately verified production adopter at snapshot; repository activity is not adoption |
@@ -21,9 +21,9 @@ production-adoption points.
 Weighted calculation:
 
 ```text
-0.12×9.3 + 0.10×9.3 + 0.18×9.4 + 0.12×9.1 + 0.10×9.0
-+ 0.10×8.8 + 0.10×9.1 + 0.08×9.2 + 0.05×8.4 + 0.05×1.0
-= 8.726 → 8.7/10
+0.12×9.4 + 0.10×9.5 + 0.18×9.4 + 0.12×9.1 + 0.10×9.0
++ 0.10×8.8 + 0.10×9.2 + 0.08×9.2 + 0.05×8.4 + 0.05×1.0
+= 8.768 → 8.8/10
 ```
 
 ## Verified v0.3.0 release evidence
@@ -44,7 +44,7 @@ Weighted calculation:
   is public, while adoption remains scored at 1.0 until an independent report meets the evidence
   policy.
 
-The result is **8.7/10 with real adoption included at 1.0/10**, not a score obtained by excluding
+The result is **8.8/10 with real adoption included at 1.0/10**, not a score obtained by excluding
 the weakest category. It means the repository is technically competitive and unusually complete
 for an early narrow control-plane project. It does not mean ecosystem parity with OPA, Temporal,
 LangGraph, or established guardrail projects.
@@ -68,7 +68,7 @@ not retroactive adoption claims.
 - independent security review and published remediation record;
 - PostgreSQL contention/recovery/tail-latency report on disclosed infrastructure;
 - tested backup/restore and regional HA evidence with RPO/RTO;
-- provider contract kits and one externally maintained integration;
+- production provider kits and one externally maintained integration;
 - second trusted maintainer and recurring external contributions.
 
 Crossing 9.0 should come from independent proof, not another maintainer-authored feature batch.

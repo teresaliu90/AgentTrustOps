@@ -5,6 +5,15 @@ minor releases may contain clearly documented breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- server-owned provider probes that atomically resolve unknown outcomes from persisted governed
+  requests;
+- explicit `committed`, `not_committed`, and `pending` provider observations, with privacy-reviewed
+  audit evidence and fail-safe handling of provider outages;
+- authenticated provider-reconciliation API and console control, contract tests, documentation,
+  and executable synthetic payment example.
+
 ## [0.3.0] - 2026-08-10
 
 ### Added

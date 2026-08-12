@@ -88,11 +88,12 @@
           </div>
           <fieldset>
             <legend>Reconcile an unknown outcome</legend>
+            <button id="provider-reconcile" class="primary" type="button">Check configured provider</button>
             <select id="reconcile-outcome" aria-label="Reconciliation outcome">
               <option value="completed">Provider completed</option>
               <option value="failed">Provider failed</option>
             </select>
-            <button id="reconcile" class="secondary" type="button">Reconcile</button>
+            <button id="reconcile" class="secondary" type="button">Manual reconcile</button>
           </fieldset>
           <p class="boundary">Buttons remain subject to server-side tenant and role checks. The console cannot grant authority.</p>
         </aside>

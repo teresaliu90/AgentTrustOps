@@ -58,7 +58,7 @@ This is a complementary boundary, not a claim to replace those mature ecosystems
 | A retry repeats a side effect | Same key + same governed request returns the stored run; changed actor, evidence, risk, metadata, or arguments is a hard conflict |
 | A caller claims an admin identity | HTTP actor, tenant, and roles come only from a verified static-demo or OIDC/JWKS credential |
 | A high-risk call bypasses review | Approval is bound to tenant, role, fingerprint, policy digest, expiry, and separation of duties |
-| A worker dies around the provider commit | Leases and heartbeats move abandoned execution to `unknown`; AgentTrustOps never blindly retries it |
+| A worker dies around the provider commit | Leases move abandoned execution to `unknown`; a server-owned probe can query the provider without blindly retrying |
 | An incident cannot be reconstructed | State and event append commit together; each run has a count/head-anchored SHA-256 event chain |
 | An auditor cannot trust a database screenshot | Redacted evidence bundles can be Ed25519-signed and verified offline against a pinned public key |
 | A safer release regresses | Deterministic adversarial scenarios block CI without a model or network |
@@ -114,6 +114,16 @@ Direct calls to the wrapped function are blocked. Async actions use `invoke_asyn
 gateways use `invoke_request` to supply the caller's stable `Idempotency-Key` explicitly.
 `ActionContext` is trusted SDK input; production gateways must derive it from authenticated identity
 and systems of record, never model-visible arguments.
+
+### Reconcile the real provider, not a model claim
+
+For `unknown` runs, a server-owned `ProviderProbe` receives the persisted idempotency key and
+arguments and returns `committed`, `not_committed`, or `pending`. The agent and HTTP request cannot
+supply the outcome. A provider outage leaves the run unknown; a definitive observation is audited
+atomically with the final state, and the protected action is never executed again. The browser
+console exposes the same guarded lookup without accepting an outcome from the operator. See the
+[provider reconciliation contract](docs/provider-reconciliation.md) and its
+[`synthetic executable example`](examples/provider_reconciliation.py).
 
 ## Production-shaped control plane
 
@@ -202,6 +212,7 @@ at the visibility level you control.
 
 - [Architecture and state machine](docs/architecture.md)
 - [HTTP API walkthrough](docs/api.md)
+- [Provider-backed unknown-outcome reconciliation](docs/provider-reconciliation.md)
 - [Audit evidence and offline verification](docs/audit-evidence.md)
 - [Operations and incident runbook](docs/operations.md)
 - [Security model](docs/threat-model.md) and [production boundaries](docs/production-boundaries.md)

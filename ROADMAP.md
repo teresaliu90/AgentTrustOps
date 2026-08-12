@@ -8,6 +8,11 @@
 - one-command, no-key, persisted demo with machine-readable output;
 - explicit competitive category map, measurable adoption ladder, and 60-second-to-pilot funnel.
 
+## Shipped after v0.3
+
+- server-owned provider reconciliation contract with persisted lookup inputs, three-state
+  observations, authenticated HTTP wiring, privacy-safe audit events, and a synthetic example.
+
 ## Shipped in v0.2
 
 - strict idempotency fingerprints, transactional event chains, execution leases, unknown outcomes,
@@ -34,7 +39,7 @@
 
 ### Ecosystem depth
 
-- provider contract kits for payments, messaging, deployments, and database mutations;
+- production provider kits for payments, messaging, deployments, and database mutations;
 - workload-identity and mTLS examples plus provider-specific OIDC claim recipes;
 - maintained OpenTelemetry/SIEM export and at least one externally owned integration.
 

@@ -41,6 +41,13 @@ from .observability import (
     render_prometheus,
 )
 from .postgres import PostgresActionLedger
+from .providers import (
+    ProviderLookup,
+    ProviderLookupError,
+    ProviderObservation,
+    ProviderOutcome,
+    ProviderProbe,
+)
 from .registry import ActionRegistry
 from .runtime import IndeterminateOutcome, TrustedAction, trusted_action
 
@@ -62,6 +69,11 @@ __all__ = [
     "PolicyDecision",
     "PolicyOutcome",
     "PostgresActionLedger",
+    "ProviderLookup",
+    "ProviderLookupError",
+    "ProviderObservation",
+    "ProviderOutcome",
+    "ProviderProbe",
     "SQLiteActionLedger",
     "StaticTokenVerifier",
     "TrustedAction",

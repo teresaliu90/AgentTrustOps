@@ -20,6 +20,13 @@ from .models import (
     PolicyOutcome,
     VerifiedPrincipal,
 )
+from .providers import (
+    ProviderLookup,
+    ProviderObservation,
+    ProviderOutcome,
+    ProviderProbe,
+    validate_provider_name,
+)
 
 T = TypeVar("T")
 Arguments = dict[str, Any]
@@ -352,6 +359,80 @@ class TrustedAction:
         ):
             raise ValueError("run is not waiting for reconciliation")
         return self._result_from_run(self.ledger.get_run(run_id))
+
+    def reconcile_from_provider(
+        self,
+        run_id: str,
+        *,
+        probe: ProviderProbe,
+        principal: VerifiedPrincipal,
+    ) -> ActionResult:
+        """Inspect an authoritative provider before resolving an unknown run.
+
+        The lookup input comes from the persisted request, never from an agent
+        or reconciliation HTTP body.  A pending observation records evidence
+        but deliberately leaves the run in ``unknown``.
+        """
+
+        run = self._load_reconcilable_run(run_id, principal=principal)
+        provider = validate_provider_name(probe.name)
+        observation = probe.lookup(
+            ProviderLookup(
+                run_id=run_id,
+                action_name=self.name,
+                tenant_id=str(run["tenant_id"]),
+                idempotency_key=str(run["idempotency_key"]),
+                arguments=dict(run["arguments"]),
+            )
+        )
+        if not isinstance(observation, ProviderObservation):
+            raise TypeError("provider probe must return ProviderObservation")
+        status: ActionStatus | None = None
+        result: dict[str, Any] = {"provider": provider}
+        if observation.outcome is not ProviderOutcome.PENDING:
+            status = (
+                ActionStatus.COMPLETED
+                if observation.outcome is ProviderOutcome.COMMITTED
+                else ActionStatus.FAILED
+            )
+            if observation.reference is not None:
+                result["provider_reference"] = observation.reference
+            if observation.safe_result is not None:
+                result["safe_result"] = observation.safe_result
+        applied = self.ledger.apply_provider_observation(
+            run_id,
+            provider=provider,
+            outcome=observation.outcome.value,
+            summary=observation.summary,
+            reference=observation.reference,
+            status=status,
+            result=None if status is None else result,
+            principal=principal,
+        )
+        if not applied:
+            return self._result_from_run(self.ledger.get_run(run_id), duplicate=True)
+        return self._result_from_run(self.ledger.get_run(run_id))
+
+    def _load_reconcilable_run(
+        self,
+        run_id: str,
+        *,
+        principal: VerifiedPrincipal,
+    ) -> dict[str, Any]:
+        if not set(self.reconciliation_roles).intersection(principal.roles):
+            raise ApprovalDenied("principal lacks a required reconciliation role")
+        run = self.ledger.get_run(run_id)
+        if run is None:
+            raise KeyError("run not found")
+        if run["action_name"] != self.name:
+            raise ValueError("run belongs to a different action")
+        if run["tenant_id"] != principal.tenant_id:
+            raise ApprovalDenied(
+                "reconciliation operator belongs to a different tenant"
+            )
+        if run["status"] != ActionStatus.UNKNOWN.value:
+            raise ValueError("run is not waiting for reconciliation")
+        return run
 
     def resume(self, run_id: str) -> ActionResult:
         if self.is_async:

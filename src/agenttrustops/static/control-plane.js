@@ -7,7 +7,7 @@ let activeFilter = "all";
 let noticeTimer = 0;
 
 const byId = (id) => document.getElementById(id);
-const controls = ["approve", "reject", "resume", "reconcile"].map(byId);
+const controls = ["approve", "reject", "resume", "provider-reconcile", "reconcile"].map(byId);
 
 function setConnected(connected) {
   const state = byId("connection-state");
@@ -96,6 +96,7 @@ function selectRun(runId) {
   byId("approve").disabled = run.status !== "pending_approval";
   byId("reject").disabled = run.status !== "pending_approval";
   byId("resume").disabled = run.status !== "approved";
+  byId("provider-reconcile").disabled = run.status !== "unknown";
   byId("reconcile").disabled = run.status !== "unknown";
   renderRuns();
 }
@@ -123,10 +124,12 @@ async function runOperation(operation) {
   if (!selectedRunId) return notify("Select a run first.", true);
   try {
     let body;
+    let path = `/v1/runs/${encodeURIComponent(selectedRunId)}/${operation}`;
     if (operation === "approve" || operation === "reject") body = JSON.stringify({note: note()});
     if (operation === "reconcile") body = JSON.stringify({note: note(), outcome: byId("reconcile-outcome").value, result: null});
+    if (operation === "provider-reconcile") path = `/v1/runs/${encodeURIComponent(selectedRunId)}/reconcile-from-provider`;
     controls.forEach((control) => { control.disabled = true; });
-    const payload = await api(`/v1/runs/${encodeURIComponent(selectedRunId)}/${operation}`, {method: "POST", body});
+    const payload = await api(path, {method: "POST", body});
     notify(`${operation}: ${payload.status}`);
     byId("decision-note").value = "";
     await refresh();
@@ -167,7 +170,7 @@ document.querySelectorAll(".filter").forEach((button) => {
     renderRuns();
   });
 });
-["approve", "reject", "resume", "reconcile"].forEach((operation) => {
+["approve", "reject", "resume", "provider-reconcile", "reconcile"].forEach((operation) => {
   byId(operation).addEventListener("click", () => runOperation(operation));
 });
 controls.forEach((control) => { control.disabled = true; });

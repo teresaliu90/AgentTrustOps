@@ -5,7 +5,7 @@ credential before deriving actor, tenant, and roles; those fields are never
 accepted from an invocation request body.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from importlib.resources import files
 from typing import Annotated, Any, Literal, Protocol
 from uuid import uuid4
@@ -28,6 +28,7 @@ from .auth import AuthenticationError, IdentityVerifier
 from .errors import ApprovalDenied, IdempotencyConflict, InvalidTransition
 from .models import ActionContext, ActionResult, ActionStatus, VerifiedPrincipal
 from .observability import collect_operational_snapshot, render_prometheus
+from .providers import ProviderLookupError, ProviderProbe
 from .registry import ActionRegistry
 
 
@@ -91,6 +92,7 @@ def create_app(
     identity_verifier: IdentityVerifier,
     *,
     context_resolver: InvocationContextResolver | None = None,
+    provider_probes: Mapping[str, ProviderProbe] | None = None,
     invoker_role: str = "agenttrustops_invoker",
     viewer_role: str = "agenttrustops_viewer",
     executor_role: str = "agenttrustops_executor",
@@ -100,6 +102,7 @@ def create_app(
     """Build an authenticated, tenant-scoped control-plane application."""
 
     resolve_context = context_resolver or PrincipalContextResolver()
+    reconciliation_probes = dict(provider_probes or {})
     app = FastAPI(
         title="AgentTrustOps Control Plane",
         version="0.3.0",
@@ -364,6 +367,41 @@ def create_app(
             note=body.note,
             result=body.result,
         )
+        return _public_result(result)
+
+    @app.post(
+        "/v1/runs/{run_id}/reconcile-from-provider",
+        tags=["operations"],
+    )
+    async def reconcile_from_provider(
+        run_id: str,
+        identity: Annotated[VerifiedPrincipal, Depends(principal)],
+    ) -> dict[str, Any]:
+        """Resolve an unknown run from a server-owned provider lookup."""
+
+        run = load_tenant_run(run_id, identity)
+        action_name = str(run["action_name"])
+        action = registry.get(action_name)
+        if not set(action.reconciliation_roles).intersection(identity.roles):
+            raise ApprovalDenied("principal lacks a required reconciliation role")
+        probe = reconciliation_probes.get(action_name)
+        if probe is None:
+            raise HTTPException(
+                status_code=409,
+                detail="no provider reconciliation probe is configured for this action",
+            )
+        try:
+            result = await run_in_threadpool(
+                action.reconcile_from_provider,
+                run_id,
+                probe=probe,
+                principal=identity,
+            )
+        except ProviderLookupError as error:
+            raise HTTPException(
+                status_code=502,
+                detail="provider lookup failed; run remains unknown",
+            ) from error
         return _public_result(result)
 
     @app.post("/v1/operations/recover", tags=["operations"])
