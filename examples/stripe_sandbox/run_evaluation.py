@@ -12,6 +12,7 @@ from agenttrustops import (
     ActionContext,
     ActionExecutionContext,
     IdempotencyConflict,
+    IndeterminateOutcome,
     PolicyDecision,
     PolicyOutcome,
     SQLiteActionLedger,
@@ -35,7 +36,7 @@ class AllowSandboxPayment:
         )
 
 
-def build_action(ledger, adapter, *, name, evaluation_id):
+def build_action(ledger, adapter, *, name, evaluation_id, inject_response_loss=False):
     @trusted_action(
         ledger=ledger,
         policy=AllowSandboxPayment(),
@@ -53,12 +54,15 @@ def build_action(ledger, adapter, *, name, evaluation_id):
         *,
         execution: ActionExecutionContext,
     ):
-        return adapter.charge(
+        result = adapter.charge(
             invoice_id=invoice_id,
             amount=amount,
             currency=currency,
             execution=execution,
         )
+        if inject_response_loss:
+            raise IndeterminateOutcome("evaluation fault after provider response")
+        return result
 
     return charge
 
@@ -90,10 +94,7 @@ def main() -> None:
     )
 
     normal_adapter = StripeSandboxPaymentAdapter(secret_key)
-    fault_adapter = StripeSandboxPaymentAdapter(
-        secret_key,
-        fault_after_provider_response=True,
-    )
+    fault_adapter = StripeSandboxPaymentAdapter(secret_key)
     pending_adapter = StripeSandboxPaymentAdapter(
         secret_key,
         payment_method="pm_card_authenticationRequired",
@@ -109,6 +110,7 @@ def main() -> None:
         fault_adapter,
         name="stripe_sandbox_ambiguous",
         evaluation_id=evaluation_id,
+        inject_response_loss=True,
     )
     pending_action = build_action(
         ledger,
@@ -232,62 +234,8 @@ def main() -> None:
         json.dumps(verification, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    (output / "report.md").write_text(
-        _report(result),
-        encoding="utf-8",
-    )
     ledger.close()
     print(json.dumps(result, indent=2, sort_keys=True))
-
-
-def _report(result: dict) -> str:
-    rows = "\n".join(
-        f"| {name.replace('_', ' ')} | {'PASS' if passed else 'FAIL'} |"
-        for name, passed in result["scenarios"].items()
-    )
-    searches = "\n".join(f"- `{value}`" for value in result["dashboard_search_values"])
-    return f"""# Independent Stripe Sandbox Evaluation
-
-- Evaluator: TODO
-- Relationship to maintainer: TODO
-- AgentTrustOps commit: TODO
-- Evaluation ID: `{result["evaluation_id"]}`
-- Provider: Stripe Sandbox (`livemode=false`)
-- Maintainer assistance during first run: TODO
-
-## Results
-
-| Scenario | Result |
-|---|---|
-{rows}
-
-## Evidence
-
-- `sanitized-result.json`
-- `audit-bundle.json`
-- `audit-public-key.pem`
-- `verification.txt`
-- Stripe Dashboard screenshot: TODO (`dashboard-redacted.png`)
-
-Search the Stripe test Dashboard for these synthetic invoice values:
-
-{searches}
-
-Confirm exactly one PaymentIntent exists for the **AMBIGUOUS** invoice. Remove account names,
-emails, navigation history, and unrelated payments from the screenshot.
-
-## Reviewer findings
-
-- Time to first proof: TODO
-- Highest-impact blocker: TODO
-- Suggested change: TODO
-- Permission: TODO (public named / anonymous aggregate / private only)
-
-## Claim boundary
-
-This is an independent Sandbox evaluation. It uses no real money and is not a production adopter,
-Stripe certification, customer deployment, or compliance claim.
-"""
 
 
 if __name__ == "__main__":

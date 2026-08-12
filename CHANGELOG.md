@@ -15,8 +15,8 @@ minor releases may contain clearly documented breaking changes.
   and executable synthetic payment example.
 - trusted `ActionExecutionContext` injection so protected adapters receive the persisted run and
   provider idempotency key without exposing them as model or HTTP arguments;
-- live-key-refusing Stripe Sandbox adapter/probe, six-scenario evaluation runner, signed evidence
-  packet, case-study policy, and expanded independent-evaluation issue form.
+- live-key-refusing Stripe Sandbox adapter/probe and a six-scenario verification runner with
+  privacy-safe output.
 
 ## [0.3.0] - 2026-08-10
 

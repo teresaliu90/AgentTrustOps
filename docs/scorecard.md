@@ -12,8 +12,8 @@ production-adoption points.
 | Core correctness and reliability | 18% | 9.4 | atomic state/events, chain anchors, ownership/heartbeats, migrations, threaded/async/real-PostgreSQL contracts; no distributed exactly-once claim |
 | Security and privacy | 12% | 9.1 | OIDC/JWKS, tenant/role separation, fail-closed OPA, CodeQL, dependency review, secret scanning, redacted signed export; no independent audit/KMS adapter |
 | Deployment and operator UX | 10% | 9.0 | 60-second wheel demo, SDK/CLI/API/UI, SQLite/PostgreSQL, Docker, OIDC startup, metrics/recovery; no regional HA evidence |
-| Ecosystem integrations | 10% | 8.9 | tested LangGraph, OpenAI Agents, FastMCP, OPA, Stripe Sandbox and reusable GitHub Action; no production-certified connector |
-| Testing and performance evidence | 10% | 9.3 | 91 tests, provider/retry/context/replay-window negative coverage, real PostgreSQL/OPA CI, package/container/action smoke, tamper/signature negatives, reproducible benchmark; no independent load lab/SLO |
+| Ecosystem integrations | 10% | 8.8 | tested LangGraph, OpenAI Agents, FastMCP, OPA and reusable GitHub Action; small connector catalog |
+| Testing and performance evidence | 10% | 9.2 | 82 tests, provider-reconciliation race/negative coverage, real PostgreSQL/OPA CI, package/container/action smoke, tamper/signature negatives, reproducible benchmark; no independent load lab/SLO |
 | Release and supply chain | 8% | 9.2 | [v0.3.0](https://github.com/teresaliu90/AgentTrustOps/releases/tag/v0.3.0) wheel/sdist, checksums, CycloneDX SBOM, attestations and public GHCR provenance; PyPI is not claimed live |
 | OSS community process | 5% | 8.4 | issue forms, Discussions, adoption ladder/funnel, governance/support/security, citation, Code of Conduct; single-maintainer bus factor |
 | Verified external adoption | 5% | 1.0 | 1 star, 0 forks, and no named or privately verified production adopter at snapshot; repository activity is not adoption |
@@ -22,8 +22,8 @@ Weighted calculation:
 
 ```text
 0.12×9.4 + 0.10×9.5 + 0.18×9.4 + 0.12×9.1 + 0.10×9.0
-+ 0.10×8.9 + 0.10×9.3 + 0.08×9.2 + 0.05×8.4 + 0.05×1.0
-= 8.788 → 8.8/10
++ 0.10×8.8 + 0.10×9.2 + 0.08×9.2 + 0.05×8.4 + 0.05×1.0
+= 8.768 → 8.8/10
 ```
 
 ## Verified v0.3.0 release evidence

@@ -17,10 +17,6 @@ than a large number of passive stars.
 > demo and tell me what would block a real integration? It uses no model, API key, company data, or
 > sales process. Anonymous feedback is welcome.
 
-For reviewers with a Stripe test account, use the
-[Stripe Sandbox invitation and evidence runner](../case-studies/stripe-sandbox-invitation.md) after
-the no-key task. Keep maintainer-only validation and independent evaluation in separate reports.
-
 ## Unassisted ten-minute task
 
 1. Install the release wheel and complete `agenttrust demo` using only the README.

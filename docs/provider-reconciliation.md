@@ -103,12 +103,6 @@ Run the dependency-free synthetic example from a checkout:
 python examples/provider_reconciliation.py
 ```
 
-For a real external boundary, the Stripe Sandbox adapter replays the same parameter set and
-idempotency key. Stripe's key retention is finite, so the adapter refuses this lookup once the run
-is 23 hours old; an operator must then investigate without creating another payment. The runnable
-path and publication boundary are documented in
-[`examples/stripe_sandbox`](../examples/stripe_sandbox/README.md).
-
 ## Security and privacy checklist
 
 - Keep provider credentials in the server-owned adapter, never in action arguments or prompts.

@@ -13,8 +13,10 @@ from agenttrustops import (
     ActionExecutionContext,
     ActionStatus,
     IdempotencyConflict,
+    IndeterminateOutcome,
     PolicyDecision,
     PolicyOutcome,
+    ProviderLookup,
     ProviderLookupError,
     SQLiteActionLedger,
     StripeSandboxPaymentAdapter,
@@ -174,7 +176,6 @@ class StripeSandboxContractTests(unittest.TestCase):
         adapter = StripeSandboxPaymentAdapter(
             "sk_test_contract",
             payment_method=payment_method,
-            fault_after_provider_response=fault_after_provider_response,
             payment_intents=fake,
             ambiguous_error_types=(FakeConnectionError,),
         )
@@ -196,12 +197,15 @@ class StripeSandboxContractTests(unittest.TestCase):
             *,
             execution: ActionExecutionContext,
         ):
-            return adapter.charge(
+            result = adapter.charge(
                 invoice_id=invoice_id,
                 amount=amount,
                 currency=currency,
                 execution=execution,
             )
+            if fault_after_provider_response:
+                raise IndeterminateOutcome("test fault after provider response")
+            return result
 
         return charge, adapter
 
@@ -349,6 +353,13 @@ class StripeSandboxContractTests(unittest.TestCase):
     def test_current_official_sdk_surface_can_construct_without_network(self) -> None:
         adapter = StripeSandboxPaymentAdapter("sk_test_placeholder")
         self.assertEqual(adapter.provider_name, "stripe-sandbox")
+
+    def test_provider_lookup_keeps_the_original_positional_arguments_contract(
+        self,
+    ) -> None:
+        lookup = ProviderLookup("run", "action", "tenant", "key", {"invoice": "1"})
+        self.assertEqual(lookup.arguments, {"invoice": "1"})
+        self.assertIsNone(lookup.created_at)
 
 
 if __name__ == "__main__":

@@ -53,7 +53,6 @@ class StripeSandboxPaymentAdapter:
         *,
         payment_method: str = "pm_card_visa",
         return_url: str = "https://example.invalid/agenttrustops/stripe-return",
-        fault_after_provider_response: bool = False,
         payment_intents: _PaymentIntentsResource | None = None,
         ambiguous_error_types: tuple[type[BaseException], ...] | None = None,
     ):
@@ -72,7 +71,6 @@ class StripeSandboxPaymentAdapter:
         self._ambiguous_error_types = ambiguous_error_types or ()
         self.payment_method = payment_method.strip()
         self.return_url = return_url.strip()
-        self.fault_after_provider_response = fault_after_provider_response
 
     def charge(
         self,
@@ -109,10 +107,6 @@ class StripeSandboxPaymentAdapter:
             raise IndeterminateOutcome(
                 "Stripe Sandbox response could not be verified"
             ) from error
-        if self.fault_after_provider_response:
-            raise IndeterminateOutcome(
-                "fault injection after Stripe Sandbox returned a result"
-            )
         status = str(normalized["status"])
         if status in _COMMITTED_STATUSES:
             return _safe_result(normalized)
@@ -128,6 +122,8 @@ class StripeSandboxPaymentAdapter:
         """Replay the same sandbox POST under Stripe's idempotency contract."""
 
         try:
+            if request.created_at is None:
+                raise ProviderLookupError("Stripe lookup requires a run creation time")
             created_at = datetime.fromisoformat(request.created_at).astimezone(UTC)
             age = datetime.now(UTC) - created_at
             if age < timedelta(0) or age >= _MAX_SAFE_REPLAY_AGE:

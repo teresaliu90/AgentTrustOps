@@ -1,8 +1,8 @@
-# Stripe Sandbox external-evaluation path
+# Stripe Sandbox example
 
 This example creates real Stripe **Sandbox** objects, injects an ambiguous post-provider failure,
-proves ten retries do not re-execute, reconciles with Stripe's idempotent replay, exercises a
-pending payment, and writes a signed redacted evidence packet.
+proves ten retries do not re-execute, reconciles with Stripe's idempotent replay, and exercises a
+pending payment.
 
 It refuses `sk_live_` and `rk_live_` keys. Use synthetic invoice IDs and Stripe test PaymentMethods
 only. It is not a production connector.
@@ -15,7 +15,8 @@ Create a Stripe Sandbox and copy a test secret key. Keep it only in your shell:
 python -m venv .venv
 . .venv/bin/activate
 pip install -e '.[stripe,audit]'
-export STRIPE_SECRET_KEY='sk_test_...'
+read -s STRIPE_SECRET_KEY
+export STRIPE_SECRET_KEY
 ```
 
 Never paste the key into an issue, report, screenshot, terminal transcript, or committed file.
@@ -27,6 +28,7 @@ Choose a directory that does not exist yet:
 ```bash
 python examples/stripe_sandbox/run_evaluation.py \
   --output-dir stripe-evaluation-001
+unset STRIPE_SECRET_KEY
 ```
 
 The runner exits non-zero unless all six scenarios pass. It deletes the temporary private signing
@@ -45,14 +47,9 @@ redacted screenshot as `dashboard-redacted.png`.
 Review every generated file before publishing. Do not publish `action-ledger.db`: it contains the
 full governed request. The files intended for a consented case report are:
 
-- `report.md` after completing every TODO;
 - `sanitized-result.json`;
 - `audit-bundle.json` and `audit-public-key.pem`;
 - `verification.txt`;
 - `dashboard-redacted.png`.
 
-## 4. Count it honestly
-
-A maintainer run is integration evidence but does not change adoption. One independent evaluator
-using their own Sandbox, completing the run without coaching, and consenting to a report qualifies
-as one external evaluation—not a production adopter.
+This proves a Sandbox integration only. It is not production adoption or Stripe certification.

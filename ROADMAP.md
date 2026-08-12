@@ -12,8 +12,6 @@
 
 - server-owned provider reconciliation contract with persisted lookup inputs, three-state
   observations, authenticated HTTP wiring, privacy-safe audit events, and a synthetic example.
-- trusted provider execution context plus a Stripe Sandbox adapter, fault-injection evaluation,
-  signed evidence generator, and independent case-report workflow.
 
 ## Shipped in v0.2
 
@@ -41,8 +39,7 @@
 
 ### Ecosystem depth
 
-- production provider kits for payments plus Sandbox/production kits for messaging, deployments,
-  and database mutations;
+- production provider kits for payments, messaging, deployments, and database mutations;
 - workload-identity and mTLS examples plus provider-specific OIDC claim recipes;
 - maintained OpenTelemetry/SIEM export and at least one externally owned integration.
 

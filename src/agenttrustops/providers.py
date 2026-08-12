@@ -30,8 +30,8 @@ class ProviderLookup:
     action_name: str
     tenant_id: str
     idempotency_key: str
-    created_at: str
     arguments: dict[str, Any] = field(default_factory=dict)
+    created_at: str | None = None
 
     def __post_init__(self) -> None:
         for value, name in (
@@ -39,16 +39,16 @@ class ProviderLookup:
             (self.action_name, "action_name"),
             (self.tenant_id, "tenant_id"),
             (self.idempotency_key, "idempotency_key"),
-            (self.created_at, "created_at"),
         ):
             if not value.strip():
                 raise ValueError(f"{name} cannot be empty")
-        try:
-            created_at = datetime.fromisoformat(self.created_at)
-        except ValueError as error:
-            raise ValueError("created_at must be an ISO-8601 timestamp") from error
-        if created_at.tzinfo is None:
-            raise ValueError("created_at must include a timezone")
+        if self.created_at is not None:
+            try:
+                created_at = datetime.fromisoformat(self.created_at)
+            except ValueError as error:
+                raise ValueError("created_at must be an ISO-8601 timestamp") from error
+            if created_at.tzinfo is None:
+                raise ValueError("created_at must include a timezone")
         object.__setattr__(self, "arguments", _json_copy(self.arguments))
 
 

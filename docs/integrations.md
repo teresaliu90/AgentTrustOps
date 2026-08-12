@@ -36,8 +36,8 @@ metadata, and persists no client secret. `StripeSandboxPaymentProbe` replays the
 POST under Stripe's idempotency contract; `succeeded`, non-committed, and in-progress statuses map
 to the three provider outcomes.
 
-Use the [six-scenario runner](../examples/stripe_sandbox/README.md) to produce a signed, redacted
-evaluation packet. This is a Sandbox example, not a production connector or Stripe certification.
+Use the [six-scenario runner](../examples/stripe_sandbox/README.md) to produce local verification
+artifacts. This is a Sandbox example, not a production connector or Stripe certification.
 
 ## LangGraph
 
