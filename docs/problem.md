@@ -11,8 +11,8 @@ the decision and outcome under a public run ID.
 
 The first reference problem is a fictional refund workflow because it makes the risk concrete:
 policy versions change, historical orders exist, large amounts need approval, retries happen, and
-an incorrect duplicate can cause direct loss. The repository never connects to a real payment
-provider and contains no employer or customer data.
+an incorrect duplicate can cause direct loss. RefundOps is synthetic and contains no employer or
+customer data; the optional Stripe example connects only to Sandbox and refuses live keys.
 
 ## Success criteria through v0.3
 

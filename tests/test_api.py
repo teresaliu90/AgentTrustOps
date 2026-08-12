@@ -115,10 +115,24 @@ class ApiTests(unittest.TestCase):
         )
 
     def test_health_is_public_but_control_plane_requires_authentication(self) -> None:
-        self.assertEqual(self.client.get("/healthz").status_code, 200)
+        health = self.client.get(
+            "/healthz", headers={"X-Request-ID": "request.known-001"}
+        )
+        self.assertEqual(health.status_code, 200)
+        self.assertEqual(health.headers["X-Request-ID"], "request.known-001")
+        self.assertEqual(health.headers["Cache-Control"], "no-store")
+        self.assertEqual(health.headers["X-Content-Type-Options"], "nosniff")
         response = self.client.get("/v1/actions")
         self.assertEqual(response.status_code, 401)
         self.assertEqual(response.headers["www-authenticate"], "Bearer")
+
+    def test_invalid_request_id_is_not_reflected(self) -> None:
+        response = self.client.get(
+            "/healthz", headers={"X-Request-ID": "unsafe request id"}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertRegex(response.headers["X-Request-ID"], r"^req_[0-9a-f]{32}$")
 
     def test_console_shell_is_public_hardened_and_keeps_api_authenticated(self) -> None:
         page = self.client.get("/ui")

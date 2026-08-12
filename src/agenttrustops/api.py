@@ -5,6 +5,7 @@ credential before deriving actor, tenant, and roles; those fields are never
 accepted from an invocation request body.
 """
 
+import re
 from collections.abc import Callable, Mapping
 from importlib.resources import files
 from typing import Annotated, Any, Literal, Protocol
@@ -30,6 +31,8 @@ from .models import ActionContext, ActionResult, ActionStatus, VerifiedPrincipal
 from .observability import collect_operational_snapshot, render_prometheus
 from .providers import ProviderLookupError, ProviderProbe
 from .registry import ActionRegistry
+
+_REQUEST_ID = re.compile(r"[A-Za-z0-9._:-]{1,128}\Z")
 
 
 class InvocationContextResolver(Protocol):
@@ -116,18 +119,23 @@ def create_app(
     async def request_identity(
         request: Request, call_next: Callable[..., Any]
     ) -> Response:
-        request_id = request.headers.get("X-Request-ID", f"req_{uuid4().hex}")[:128]
+        supplied_request_id = request.headers.get("X-Request-ID", "")
+        request_id = (
+            supplied_request_id
+            if _REQUEST_ID.fullmatch(supplied_request_id)
+            else f"req_{uuid4().hex}"
+        )
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
         response.headers["Cache-Control"] = "no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
         if request.url.path == "/ui" or request.url.path.startswith("/ui/"):
             response.headers["Content-Security-Policy"] = (
                 "default-src 'none'; style-src 'self'; script-src 'self'; "
                 "connect-src 'self'; img-src 'self' data:; base-uri 'none'; "
                 "frame-ancestors 'none'; form-action 'none'"
             )
-            response.headers["X-Content-Type-Options"] = "nosniff"
-            response.headers["Referrer-Policy"] = "no-referrer"
         return response
 
     async def principal(

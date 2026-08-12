@@ -512,8 +512,10 @@ class SQLiteActionLedger:
                 next_status = ActionStatus.DENIED
             elif decision.outcome is PolicyOutcome.APPROVAL_REQUIRED:
                 next_status = ActionStatus.PENDING_APPROVAL
-            else:
+            elif decision.outcome is PolicyOutcome.ALLOW:
                 next_status = ActionStatus.CREATED
+            else:  # pragma: no cover - PolicyDecision rejects this first
+                raise ValueError("unsupported policy outcome")
             connection.execute(
                 """
                 UPDATE action_runs SET status = ?, policy_version = ?, policy_digest = ?,

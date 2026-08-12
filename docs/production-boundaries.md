@@ -1,7 +1,7 @@
 # Production boundaries
 
-AgentTrustOps v0.3 is a beta-quality foundation with a deployable control plane and PostgreSQL
-contract tests. It does not certify a particular business integration.
+AgentTrustOps is an early-stage foundation with a reference control plane and PostgreSQL contract
+tests. It does not certify a particular business integration.
 
 - **Identity:** `ActionContext` remains an SDK trust-boundary input. The HTTP adapter instead derives
   actor/tenant/roles through `IdentityVerifier`; applications must supply production-grade OIDC,
@@ -18,6 +18,9 @@ contract tests. It does not certify a particular business integration.
   blind retry until verified reconciliation.
 - **Sensitive data:** default views redact payloads, but the reference schema stores arguments,
   evidence, and results. Minimize, tokenize, encrypt, or omit them according to retention policy.
+- **Host trust:** the SDK is not a sandbox. Application code that retains the original function or
+  accesses `TrustedAction.function` can bypass governance; expose only registered action gateways
+  to agent-controlled code.
 - **Availability:** PostgreSQL supports multiple processes, but the repository does not ship a
   regional HA topology or measured SLO.
 - **Adoption:** tests and demos are technical evidence, not proof of production use or compliance.

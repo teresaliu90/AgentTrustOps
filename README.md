@@ -18,6 +18,10 @@ engines return decisions. Workflow engines make code durable. AgentTrustOps comp
 and owns a narrower transaction: **verified authority → policy → bound approval → one execution
 claim → unknown-outcome reconciliation → portable audit evidence**.
 
+> **Status:** v0.3.0 is the latest release. Provider-backed reconciliation and the Stripe Sandbox
+> example are currently unreleased on `main`. The project is early-stage, has one maintainer, and
+> has no verified production adopters.
+
 ## Prove the core contract in 60 seconds
 
 No model, API key, Docker, or cloned repository is required:
@@ -48,8 +52,8 @@ contracts without pretending to be a production adopter.
 | Temporal / durable workflows | Schedule and retry reliable application code | Agent-specific evidence, changed-request conflicts, privacy-safe side-effect evidence |
 | Prompt/trace guardrails | Detect unsafe text, calls, or behavior | Transactionally block and record the effect instead of only observing it |
 
-This is a complementary boundary, not a claim to replace those mature ecosystems. See the
-[evidence-linked competitive analysis](docs/comparison.md).
+This is a complementary boundary, not a claim to replace those mature ecosystems. See
+[positioning and alternatives](docs/comparison.md).
 
 ## The contracts that matter after the demo
 
@@ -110,8 +114,10 @@ result = execute_refund.invoke(
 )
 ```
 
-Direct calls to the wrapped function are blocked. Async actions use `invoke_async`. HTTP and tool
-gateways use `invoke_request` to supply the caller's stable `Idempotency-Key` explicitly.
+Calling the decorated action directly is blocked; use `invoke` or `invoke_async`. This is an
+application control boundary, not a Python sandbox: trusted host code that retains the original
+function or accesses `action.function` can bypass it. HTTP and tool gateways use `invoke_request`
+to supply the caller's stable `Idempotency-Key` explicitly.
 `ActionContext` is trusted SDK input; production gateways must derive it from authenticated identity
 and systems of record, never model-visible arguments.
 
@@ -126,7 +132,8 @@ For `unknown` runs, a server-owned `ProviderProbe` receives the persisted idempo
 arguments and returns `committed`, `not_committed`, or `pending`. The agent and HTTP request cannot
 supply the outcome. A provider outage leaves the run unknown; a definitive observation is audited
 atomically with the final state, and the protected action is never executed again. The browser
-console exposes the same guarded lookup without accepting an outcome from the operator. See the
+console exposes this guarded lookup separately from its privileged manual-reconciliation
+override. See the
 [provider reconciliation contract](docs/provider-reconciliation.md) and its
 [`synthetic executable example`](examples/provider_reconciliation.py).
 
@@ -203,16 +210,12 @@ SBOM/provenance; PyPI is not claimed live until its public package page exists.
 Those limits are product requirements, not footnotes. See [non-goals](docs/non-goals.md), the
 [threat model](docs/threat-model.md), and the [operations runbook](docs/operations.md).
 
-## Adoption is measured, not decorated
+## Project maturity
 
-The current adopter registry remains honest. The [adoption ladder](docs/adoption-playbook.md)
-defines what raises the external-adoption score from 1 to 10, and the
-[unassisted design-partner challenge](docs/design-partner-feedback-kit.md) makes the first external
-proof reproducible. Join the public
-[v0.3 20-minute challenge](https://github.com/teresaliu90/AgentTrustOps/discussions/3). If you
-evaluate a real workflow, submit the
-[adopter report](https://github.com/teresaliu90/AgentTrustOps/issues/new?template=design-partner.yml)
-at the visibility level you control.
+There are no verified production adopters yet. Tests, releases, stars, and maintainer demos are
+technical evidence—not adoption. If you evaluate a pilot, use the
+[adopter report](https://github.com/teresaliu90/AgentTrustOps/issues/new?template=design-partner.yml);
+no organization or metric is published without consent.
 
 ## Documentation
 
@@ -223,10 +226,10 @@ at the visibility level you control.
 - [Operations and incident runbook](docs/operations.md)
 - [Security model](docs/threat-model.md) and [production boundaries](docs/production-boundaries.md)
 - [Framework integrations](docs/integrations.md)
-- [Competitive comparison](docs/comparison.md) and [evidence-based scorecard](docs/scorecard.md)
+- [Positioning and alternatives](docs/comparison.md)
 - [Publishing](docs/publishing.md), [roadmap](ROADMAP.md), and [changelog](CHANGELOG.md)
 - [Adopters](ADOPTERS.md), [governance](GOVERNANCE.md), [support](SUPPORT.md), and [contributing](CONTRIBUTING.md)
 
-AgentTrustOps v0.3 is a beta-quality open-source control plane, not a compliance-certified managed
-service. Apache-2.0 licensed. Contributions, real design-partner reports, adversarial scenarios,
-and critical review are welcome.
+AgentTrustOps is an early-stage open-source control plane, not a compliance-certified managed
+service. Apache-2.0 licensed. Contributions, adversarial scenarios, and critical review are
+welcome.

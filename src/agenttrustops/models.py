@@ -2,9 +2,22 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
+
+
+def _json_object_copy(value: dict[str, Any], *, field_name: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{field_name} must be a dictionary")
+    try:
+        copied = json.loads(
+            json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False)
+        )
+    except (TypeError, ValueError, UnicodeError) as error:
+        raise ValueError(f"{field_name} must be JSON serializable") from error
+    return copied
 
 
 class PolicyOutcome(StrEnum):
@@ -97,7 +110,11 @@ class ActionContext:
                 )
             ),
         )
-        object.__setattr__(self, "metadata", dict(self.metadata))
+        object.__setattr__(
+            self,
+            "metadata",
+            _json_object_copy(self.metadata, field_name="metadata"),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,10 +157,27 @@ class PolicyDecision:
     policy_digest: str | None = None
 
     def __post_init__(self) -> None:
-        if not self.reason.strip():
+        if not isinstance(self.outcome, PolicyOutcome):
+            raise TypeError("policy outcome must be PolicyOutcome")
+        reason = self.reason.strip()
+        policy_version = self.policy_version.strip()
+        if not reason:
             raise ValueError("policy decision reason cannot be empty")
-        if not self.policy_version.strip():
+        if not policy_version:
             raise ValueError("policy version cannot be empty")
+        policy_digest = self.policy_digest
+        if policy_digest is not None:
+            policy_digest = policy_digest.strip()
+            if not policy_digest:
+                raise ValueError("policy digest cannot be empty")
+        object.__setattr__(self, "reason", reason)
+        object.__setattr__(self, "policy_version", policy_version)
+        object.__setattr__(self, "policy_digest", policy_digest)
+        object.__setattr__(
+            self,
+            "facts",
+            _json_object_copy(self.facts, field_name="policy facts"),
+        )
 
 
 @dataclass(frozen=True, slots=True)

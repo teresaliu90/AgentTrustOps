@@ -92,7 +92,7 @@ class ActionPolicy(Protocol):
 
 
 class TrustedAction:
-    """Callable metadata plus the only guarded route to the wrapped function."""
+    """Callable metadata plus the intended guarded route to protected code."""
 
     def __init__(
         self,
@@ -114,16 +114,24 @@ class TrustedAction:
         self.ledger = ledger
         self.policy = policy
         self.idempotency_key_factory = idempotency_key
-        self.risk = risk
-        self.name = name or function.__name__
+        self.risk = risk.strip()
+        self.name = (name or function.__name__).strip()
+        if not self.risk:
+            raise ValueError("risk cannot be empty")
+        if not self.name:
+            raise ValueError("action name cannot be empty")
         if not 1 <= execution_lease_seconds <= 86400:
             raise ValueError("execution_lease_seconds must be between 1 and 86400")
         if not 1 <= approval_ttl_seconds <= 604800:
             raise ValueError("approval_ttl_seconds must be between 1 and 604800")
         self.execution_lease_seconds = execution_lease_seconds
         self.approval_ttl_seconds = approval_ttl_seconds
-        self.approval_roles = tuple(sorted(set(approval_roles)))
-        self.reconciliation_roles = tuple(sorted(set(reconciliation_roles)))
+        self.approval_roles = tuple(
+            sorted({role.strip() for role in approval_roles if role.strip()})
+        )
+        self.reconciliation_roles = tuple(
+            sorted({role.strip() for role in reconciliation_roles if role.strip()})
+        )
         if not self.approval_roles or not self.reconciliation_roles:
             raise ValueError("approval and reconciliation roles cannot be empty")
         self.allow_self_approval = allow_self_approval
@@ -377,6 +385,10 @@ class TrustedAction:
             raise KeyError("run not found")
         if run["action_name"] != self.name:
             raise ValueError("run belongs to a different action")
+        if run["tenant_id"] != principal.tenant_id:
+            raise ApprovalDenied(
+                "reconciliation operator belongs to a different tenant"
+            )
         status = ActionStatus(outcome)
         if not self.ledger.reconcile_run(
             run_id,

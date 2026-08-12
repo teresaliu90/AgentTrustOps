@@ -1,89 +1,39 @@
-# Competitive position: own the side-effect commit point
+# Positioning and alternatives
 
-Snapshot: 2026-08-10. AgentTrustOps competes for a narrow responsibility: enforcing the transaction
-between agent intent and an irreversible or costly business mutation. It normally composes with,
-rather than replaces, the projects below.
+AgentTrustOps governs the point where an agent request becomes an external side effect. It is
+designed to compose with orchestration, workflow, policy, and guardrail systems—not replace them.
 
-## Category map
+| If you primarily need... | Start with | Add AgentTrustOps when... |
+|---|---|---|
+| Stateful agent graphs and interrupts | [LangGraph](https://github.com/langchain-ai/langgraph) | a graph node must cross a policy/approval/idempotency boundary before mutating a business system |
+| Durable distributed workflows | [Temporal](https://github.com/temporalio/temporal) | agent authority, bound approval, and side-effect audit need a framework-independent record |
+| General policy as code | [Open Policy Agent](https://github.com/open-policy-agent/opa) | the decision must be followed by durable approval, execution claims, and reconciliation |
+| Model and agent evaluation | [Promptfoo](https://github.com/promptfoo/promptfoo) | a passing evaluation must become an enforceable runtime mutation gate |
+| Conversation or trace guardrails | [NeMo Guardrails](https://github.com/NVIDIA-NeMo/Guardrails) or [Invariant](https://github.com/invariantlabs-ai/invariant) | allowed tool calls still require transactional execution and uncertain-outcome handling |
 
-| Project | Demonstrated center of gravity | Where AgentTrustOps plugs in | Source |
-|---|---|---|---|
-| LangGraph | Low-level orchestration for long-running, stateful agents | Put the governed commit boundary inside graph/tool nodes | [official repository](https://github.com/langchain-ai/langgraph) |
-| Temporal | Durable execution, retries, timers, and distributed workflow state | Let the workflow schedule work while AgentTrustOps owns approval, request identity, and side-effect evidence | [official repository](https://github.com/temporalio/temporal) |
-| Open Policy Agent | General policy-as-code and a mature policy ecosystem | Use OPA for `allow`/`approval_required` while AgentTrustOps persists and enforces the remaining lifecycle | [official repository](https://github.com/open-policy-agent/opa) |
-| Promptfoo | Evaluation and red teaming for LLM applications | Run broad model/security tests, then use AgentTrustOps as the production mutation gate | [official repository](https://github.com/promptfoo/promptfoo) |
-| NeMo Guardrails | Programmable guardrails for LLM application behavior | Keep content/conversation controls separate from the durable side-effect transaction | [official repository](https://github.com/NVIDIA-NeMo/Guardrails) |
-| Invariant Guardrails | Rule-based agent trace and MCP/LLM proxy guardrailing | Add durable claims, approval binding, crash ambiguity, reconciliation, and portable evidence | [official repository](https://github.com/invariantlabs-ai/invariant) |
-| mcp-agent | MCP-native agent construction, examples, and durable workflow integrations | Register governed MCP tools while authority stays outside model arguments | [official repository](https://github.com/lastmile-ai/mcp-agent) |
+## What this repository uniquely tests
 
-The established projects have much larger communities and broader scopes. AgentTrustOps does not
-compete by duplicating them. Its wedge is the cross-layer invariant none of those categories alone
-owns: **the same risky request, verified authority, policy digest, human decision, execution claim,
-uncertain outcome, reconciliation, and redacted evidence remain one durable record.**
+These contracts are exercised in the
+[reliability contract](../tests/test_reliability_contract.py),
+[runtime tests](../tests/test_runtime.py), and
+[provider-reconciliation tests](../tests/test_provider_reconciliation.py):
 
-## GitHub community reality
+- same idempotency key and same governed request return one durable run;
+- the same key with changed authority, evidence, metadata, or arguments is rejected;
+- approval is bound to the request fingerprint, tenant, role, policy version/digest, and expiry;
+- an expired execution lease or ambiguous provider response becomes `unknown`, never an automatic
+  retry;
+- a server-owned provider probe can reconcile an unknown run without accepting the outcome from
+  agent arguments;
+- state changes and audit events commit atomically on SQLite and PostgreSQL.
 
-These counts came from the GitHub repository API on 2026-08-10. Stars and forks are not production
-adoption, but they are useful evidence of reach, review surface, and contributor gravity.
+## When not to use AgentTrustOps
 
-| Repository | Stars | Forks | Honest interpretation |
-|---|---:|---:|---|
-| [LangGraph](https://github.com/langchain-ai/langgraph) | 39,341 | 6,609 | Agent-runtime reach AgentTrustOps cannot currently match |
-| [Temporal](https://github.com/temporalio/temporal) | 22,204 | 1,800 | Mature durable-execution community and operations depth |
-| [OPA](https://github.com/open-policy-agent/opa) | 12,086 | 1,648 | Mature policy ecosystem, adopters, governance, and security history |
-| [mcp-agent](https://github.com/lastmile-ai/mcp-agent) | 8,495 | 877 | Strong MCP developer funnel and maintained examples |
-| [Invariant](https://github.com/invariantlabs-ai/invariant) | 441 | 47 | Established specialist agent-guardrail reach |
-| [AgentTrustOps](https://github.com/teresaliu90/AgentTrustOps) | 1 | 0 | Technically credible early project; no verified production adopter |
+Do not add it for read-only tools, ordinary chat responses, or workflows already governed by an
+equivalent application transaction with verified identity, durable approval, provider-native
+idempotency, uncertain-outcome reconciliation, and sufficient audit evidence. It is also not a
+security sandbox for untrusted Python code.
 
-AgentTrustOps is therefore **not yet ecosystem-competitive** on reach. It is product-competitive on
-one high-value boundary: the side-effect lifecycle that begins after an agent proposes a call and
-does not end until an uncertain provider result is reconciled and portable evidence is verified.
-The adoption plan is designed to test whether that wedge earns a community rather than assuming it
-will.
-
-## Executable differentiators
-
-These claims are linked to tests or runnable commands rather than screenshots:
-
-1. Same key + same full request returns the stored public answer without new evidence-chain events;
-   same key + changed actor, tenant, roles, evidence, risk, arguments, or metadata is a hard conflict.
-2. Approval binds verified principal, tenant, role, request fingerprint, policy version/digest,
-   expiry, note, and separation of duties.
-3. Transactional execution ownership plus heartbeats makes abandoned workers `unknown`; a
-   server-owned probe derives its lookup from the persisted request and resolves only an
-   authoritative `committed` or `not_committed` result—never a model/caller claim.
-4. `pending` observations and provider lookup failures remain `unknown`, while every accepted
-   observation is audited and the protected action is never re-executed during reconciliation.
-5. State and event append commit atomically on SQLite and PostgreSQL, with per-run count/head-anchored
-   SHA-256 chains.
-6. Default HTTP/audit views omit credentials, idempotency keys, raw identities, arguments, evidence,
-   results, and sensitive event fields.
-7. Redacted audit bundles refuse invalid source chains, support Ed25519 signing, and verify offline
-   with a separately pinned public key.
-8. OIDC/JWKS, static-demo auth, OPA, LangGraph, OpenAI Agents, and FastMCP adapters keep verified
-   authority outside model-controlled arguments.
-9. Safe and deliberately unsafe policy fixtures run as a reusable GitHub release gate with no model,
-   API key, network dependency, or nondeterministic judge.
-
-Run the focused evidence locally:
-
-```bash
-python -m unittest \
-  tests.test_reliability_contract \
-  tests.test_audit_bundle \
-  tests.test_auth_and_cli \
-  tests.test_integrations -v
-```
-
-## Where competitors are still stronger
-
-- Temporal has a mature multi-language durable-execution ecosystem and operational platform.
-- OPA has CNCF governance, broad integrations, public adopters, and independent security history.
-- LangGraph and mcp-agent have far larger agent-developer reach and example ecosystems.
-- Promptfoo, NeMo Guardrails, and Invariant cover much broader evaluation/content/trace threat
-  surfaces.
-
-AgentTrustOps currently has no verified production adopter, managed cloud, regional HA evidence,
-provider-certified connector, independent security audit, or multi-maintainer governance. Those
-gaps are not converted into points through repository polish. The [adoption ladder](adoption-playbook.md)
-and [roadmap](../ROADMAP.md) state what evidence closes them.
+The mature projects above have substantially larger communities, operational histories, and
+integration ecosystems. AgentTrustOps is currently an early-stage, single-maintainer project with
+no verified production adopters. Evaluate the contract and boundaries before choosing it.

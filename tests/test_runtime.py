@@ -107,7 +107,7 @@ class TrustedActionTests(unittest.TestCase):
             self.action.invoke(context=other_actor, order_id="O-LOW", amount=100)
 
     def test_same_idempotency_key_cannot_replay_with_different_metadata(self) -> None:
-        original_metadata = {"record_revision": "7"}
+        original_metadata = {"record": {"revision": "7"}}
         first_context = ActionContext(
             actor_id="test-agent",
             tenant_id="default",
@@ -116,9 +116,9 @@ class TrustedActionTests(unittest.TestCase):
             metadata=original_metadata,
         )
         self.action.invoke(context=first_context, order_id="O-LOW", amount=100)
-        original_metadata["record_revision"] = "8"
+        original_metadata["record"]["revision"] = "8"
 
-        self.assertEqual(first_context.metadata, {"record_revision": "7"})
+        self.assertEqual(first_context.metadata, {"record": {"revision": "7"}})
         with self.assertRaises(IdempotencyConflict):
             self.action.invoke(
                 context=ActionContext(
@@ -126,7 +126,7 @@ class TrustedActionTests(unittest.TestCase):
                     tenant_id="default",
                     roles=("refund_agent",),
                     evidence=("ORDER:O-LOW", "LOGISTICS:O-LOW"),
-                    metadata={"record_revision": "8"},
+                    metadata={"record": {"revision": "8"}},
                 ),
                 order_id="O-LOW",
                 amount=100,
@@ -246,7 +246,62 @@ class TrustedActionTests(unittest.TestCase):
 
         self.assertEqual(result.status, ActionStatus.DENIED)
         self.assertEqual(executions, [])
-        self.assertIn("could not be serialized", result.reason)
+        self.assertIn("policy evaluation failed", result.reason)
+
+    def test_untyped_policy_outcome_cannot_fall_through_to_allow(self) -> None:
+        executions: list[str] = []
+
+        class InvalidOutcomePolicy:
+            def evaluate(self, action_name, arguments, action_context):
+                return PolicyDecision(
+                    "unexpected",  # type: ignore[arg-type]
+                    "must not be treated as allow",
+                    "invalid-outcome-v1",
+                )
+
+        @trusted_action(
+            ledger=SQLiteActionLedger(Path(self.temporary.name) / "invalid-outcome.db"),
+            policy=InvalidOutcomePolicy(),
+            risk="financial",
+            idempotency_key=lambda arguments, action_context: "invalid-outcome",
+        )
+        def dangerous_tool() -> dict[str, bool]:
+            executions.append("executed")
+            return {"executed": True}
+
+        result = dangerous_tool.invoke(context=ActionContext(actor_id="test-agent"))
+
+        self.assertEqual(result.status, ActionStatus.DENIED)
+        self.assertEqual(executions, [])
+        self.assertIn("policy evaluation failed", result.reason)
+
+    def test_action_configuration_rejects_empty_security_labels(self) -> None:
+        class AllowPolicy:
+            def evaluate(self, action_name, arguments, action_context):
+                return PolicyDecision(PolicyOutcome.ALLOW, "allowed", "v1")
+
+        with self.assertRaisesRegex(ValueError, "risk cannot be empty"):
+
+            @trusted_action(
+                ledger=SQLiteActionLedger(Path(self.temporary.name) / "empty-risk.db"),
+                policy=AllowPolicy(),
+                risk="  ",
+                idempotency_key=lambda arguments, action_context: "key",
+            )
+            def action_with_empty_risk():
+                return None
+
+        with self.assertRaisesRegex(ValueError, "approval.*cannot be empty"):
+
+            @trusted_action(
+                ledger=SQLiteActionLedger(Path(self.temporary.name) / "empty-roles.db"),
+                policy=AllowPolicy(),
+                risk="financial",
+                idempotency_key=lambda arguments, action_context: "key",
+                approval_roles=("  ",),
+            )
+            def action_with_empty_roles():
+                return None
 
     def test_replay_contains_policy_approval_execution_and_completion(self) -> None:
         pending = self.action.invoke(
@@ -502,6 +557,33 @@ class AsyncTrustedActionTests(unittest.IsolatedAsyncioTestCase):
                 ),
                 note="Second resolution is not allowed",
             )
+
+    def test_manual_reconciliation_rejects_cross_tenant_operator(self) -> None:
+        def charge_card(item_id: str) -> dict[str, str]:
+            raise IndeterminateOutcome("provider response was lost")
+
+        action = self._action(charge_card)
+        unknown = action.invoke(
+            context=ActionContext(actor_id="test-agent", tenant_id="default"),
+            item_id="A-CROSS-TENANT",
+        )
+
+        with self.assertRaisesRegex(ApprovalDenied, "different tenant"):
+            action.reconcile(
+                unknown.run_id,
+                outcome="completed",
+                principal=principal(
+                    "reconciliation-worker",
+                    tenant_id="other",
+                    roles=("agenttrustops_reconciler",),
+                ),
+                note="Must not cross the tenant boundary",
+            )
+
+        self.assertEqual(
+            self.ledger.get_run(unknown.run_id)["status"],
+            ActionStatus.UNKNOWN.value,
+        )
 
     async def test_async_cancellation_marks_run_unknown_before_reraising(self) -> None:
         async def call_provider(item_id: str) -> dict[str, str]:

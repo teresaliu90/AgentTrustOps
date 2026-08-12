@@ -5,7 +5,8 @@ engine. The trusted application resolves identity and evidence, then submits a c
 
 ## Components
 
-1. `TrustedAction` is the only callable route to protected business code.
+1. `TrustedAction` is the intended application route to protected business code. It is not a
+   sandbox against trusted host code that retains the underlying Python function.
 2. An `ActionPolicy` returns allow, deny, or approval required plus a version and digest.
 3. The ledger commits the state transition and its audit event in one transaction.
 4. The executor acquires a time-bounded ownership lease and renews it while code runs.

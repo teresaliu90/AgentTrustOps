@@ -8,7 +8,4 @@ If you run AgentTrustOps in a pilot or production workflow, open a **Design part
 2. Anonymous verified adopter, validated privately by the maintainer and reported only as an aggregate count.
 3. Design-partner pilot with a reproducible synthetic scenario and no production data.
 
-An adopter entry must record the version, backend, integration, approximate run volume band, and whether the deployment is pilot or production. No customer names, metrics, or logos are added without written consent.
-
-The score attached to this evidence is defined in the [verifiable adoption ladder](docs/adoption-playbook.md).
-Maintainer demos, CI, downloads, and issue creation do not move it.
+An adopter entry must record the version, backend, integration, approximate run volume band, and whether the deployment is pilot or production. No customer names, metrics, or logos are added without written consent. Maintainer demos, CI, downloads, and issue creation do not count as adoption.

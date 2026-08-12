@@ -11,7 +11,7 @@
 ## Covered threats
 
 - changed arguments, actor, roles, evidence, action, or risk reusing an idempotency key;
-- direct invocation that bypasses `TrustedAction`;
+- direct calls to the decorated `TrustedAction` object;
 - execution before a successful policy decision;
 - fail-open policy exceptions;
 - high-risk actions bypassing approval;
@@ -22,7 +22,7 @@
 - dead executors remaining stuck or being automatically retried;
 - state changes committing without their audit event;
 - event modification, removal, or reordering detectable by the per-run hash chain;
-- raw actor, arguments, evidence, result, and idempotency key exposed by default audit/API views;
+- raw actor, arguments, evidence, and idempotency key exposed by default list/audit views;
 - actor, tenant, and role spoofing through HTTP request-body fields.
 
 ## Partially covered
@@ -36,10 +36,14 @@
   and idempotency guarantees.
 - **Sensitive storage:** public views are redacted, while the reference schema retains arguments,
   evidence, and results for explainability.
+- **Invocation results:** a successful invoke returns the action-defined result to the authorized
+  caller. Action authors must return a privacy-safe shape; AgentTrustOps does not infer sensitive
+  fields.
 
 ## Not covered
 
-- compromised host/application code, identity provider, database administrator, or approver;
+- compromised host/application code, direct use of `action.function`, identity provider, database
+  administrator, or approver;
 - SQL/database credentials leaked outside AgentTrustOps;
 - prompt injection or malicious tool behavior not represented in policy inputs;
 - two organizations choosing inconsistent business idempotency identities;

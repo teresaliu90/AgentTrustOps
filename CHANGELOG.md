@@ -18,6 +18,16 @@ minor releases may contain clearly documented breaking changes.
 - live-key-refusing Stripe Sandbox adapter/probe and a six-scenario verification runner with
   privacy-safe output.
 
+### Changed
+
+- malformed policy outcomes now fail closed instead of falling through to execution;
+- manual reconciliation now enforces tenant isolation at the SDK boundary;
+- context metadata and policy facts are copied and validated as JSON at their trust boundaries;
+- CI enforces branch-aware source coverage and the API sanitizes reflected request IDs;
+- release builds reject tags that do not match the package version;
+- self-assigned competitiveness scores and adoption-score ladders were removed from product
+  documentation in favor of explicit maturity and trust boundaries.
+
 ## [0.3.0] - 2026-08-10
 
 ### Added

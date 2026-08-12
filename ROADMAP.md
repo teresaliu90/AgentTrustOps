@@ -5,8 +5,7 @@
 - portable, redacted audit bundles with source-chain refusal, SHA-256 digest, optional Ed25519
   signing, pinned-key offline verification, and non-overwriting CLI workflow;
 - production OIDC/JWKS authentication selectable directly from the reference-server CLI;
-- one-command, no-key, persisted demo with machine-readable output;
-- explicit competitive category map, measurable adoption ladder, and 60-second-to-pilot funnel.
+- one-command, no-key, persisted demo with machine-readable output.
 
 ## Shipped after v0.3
 
@@ -21,19 +20,17 @@
 - SQLite/PostgreSQL, Docker Compose, LangGraph, OpenAI Agents, FastMCP, OPA, release action, real
   backend contracts, package artifacts, SBOM, attestations, GHCR, CodeQL, and OpenSSF Scorecard.
 
-## Next proof milestones
+## Next milestones
 
-### Adoption and independent trust
+### Reliability and independent review
 
-- three independent unassisted evaluations with time-to-first-proof and blockers recorded;
-- three real design-partner pilots across at least two side-effect categories;
-- independent security review with a public remediation record;
-- second trusted maintainer and recurring external scenario/connector contributions.
+- publish measured PostgreSQL contention, recovery, and tail-latency results on disclosed
+  infrastructure;
+- complete an independent security review with a public remediation record;
+- test backup/restore and document explicit RPO/RTO boundaries.
 
 ### Production operations
 
-- measured PostgreSQL contention, recovery, and tail-latency report on disclosed infrastructure;
-- tested backup/restore and regional HA reference with explicit RPO/RTO evidence;
 - KMS signing adapter plus append-only/WORM exporter and checkpointed scheduled exports;
 - schema migration planning/rollback tooling and documented zero-downtime compatibility window.
 
@@ -41,8 +38,8 @@
 
 - production provider kits for payments, messaging, deployments, and database mutations;
 - workload-identity and mTLS examples plus provider-specific OIDC claim recipes;
-- maintained OpenTelemetry/SIEM export and at least one externally owned integration.
+- maintained OpenTelemetry/SIEM export.
 
 Roadmap items are proposals, not promises. Security and correctness defects take priority over
-feature breadth. Adoption, certification, HA, and provider compatibility are claimed only with
-independently verifiable evidence.
+feature breadth. Certification, HA, and provider compatibility are claimed only with independently
+verifiable evidence.

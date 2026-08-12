@@ -10,7 +10,8 @@ source .venv/bin/activate
 pip install -e '.[api,postgres,oidc,openai,mcp,dev]'
 ruff check .
 ruff format --check .
-python -m unittest discover -s tests -v
+coverage run -m unittest discover -s tests -v
+coverage report
 agenttrust eval examples/refund_ops/scenarios.json \
   --policy examples/refund_ops/policy-safe.json
 ```

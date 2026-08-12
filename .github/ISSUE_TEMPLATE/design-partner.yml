@@ -41,24 +41,6 @@ body:
         - Not deployed yet
     validations:
       required: true
-  - type: input
-    id: time_to_proof
-    attributes:
-      label: Unassisted time to first completed demo
-      placeholder: 4 minutes, or blocked at wheel install
-    validations:
-      required: true
-  - type: dropdown
-    id: audit_proof
-    attributes:
-      label: Signed audit proof
-      options:
-        - Pinned-key verification completed
-        - Digest-only verification completed
-        - Not attempted
-        - Blocked
-    validations:
-      required: true
   - type: textarea
     id: workflow
     attributes:
@@ -76,6 +58,11 @@ body:
         - 1,000–100,000
         - More than 100,000
         - Prefer not to disclose
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Result or blocker
+      description: What worked, what failed, and what evidence you can share. Synthetic evaluations are welcome when labeled as such.
     validations:
       required: true
   - type: checkboxes
