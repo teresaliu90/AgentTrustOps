@@ -47,7 +47,7 @@ postgres = ["psycopg[binary]>=3.2,<4"]
 oidc = ["PyJWT[crypto]>=2.13,<3"]
 audit = ["cryptography>=46,<51"]
 openai = ["openai-agents>=0.18,<1"]
-mcp = ["mcp>=1.29,<2"]
+mcp = ["mcp>=1.29,<3"]
 stripe = ["stripe>=15.5,<16"]
 dev = [
   "build>=1.2,<2",
